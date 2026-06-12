@@ -313,7 +313,7 @@ def _render_header():
 
 
 def _render_sidebar(api_key: str, model: str) -> tuple[str, str]:
-    """Renderiza la sidebar y retorna (api_key, model) actualizados."""
+    """Renderiza la sidebar y retorna (api_key, model). Model es siempre fijo."""
     with st.sidebar:
         # Logo
         if LOGO_PATH.exists():
@@ -352,15 +352,11 @@ def _render_sidebar(api_key: str, model: str) -> tuple[str, str]:
                 api_key = new_key
                 st.success("API Key guardada")
 
-        new_model = st.selectbox(
-            "Modelo Claude",
-            ["claude-sonnet-4-6", "claude-opus-4-8", "claude-haiku-4-5-20251001"],
-            index=["claude-sonnet-4-6", "claude-opus-4-8", "claude-haiku-4-5-20251001"].index(model)
-                  if model in ["claude-sonnet-4-6", "claude-opus-4-8", "claude-haiku-4-5-20251001"] else 0,
+        st.markdown(
+            '<div style="font-size:0.78rem;color:rgba(255,255,255,0.6);margin-top:6px">'
+            '⚡ Modelo: <b style="color:white">Claude Sonnet</b></div>',
+            unsafe_allow_html=True,
         )
-        if new_model != model:
-            set_model(new_model)
-            model = new_model
         st.markdown("</div>", unsafe_allow_html=True)
 
         # Sección: Estado
@@ -431,7 +427,7 @@ for key in ("process_data", "bpmn_xml", "diagram_png"):
 
 # Sidebar (carga y persiste config)
 api_key = get_api_key()
-model = get_model()
+model = "claude-sonnet-4-6"   # fijo, no configurable por el usuario
 api_key, model = _render_sidebar(api_key, model)
 
 # ── PASO 1: Entrada ───────────────────────────────────────────────────────────
@@ -474,22 +470,29 @@ with file_tab:
 with audio_tab:
     st.info("Graba tu voz describiendo el proceso. El audio se transcribirá automáticamente con Google Speech.")
 
-    # Estado de la grabación actual
-    if "audio_transcription" not in st.session_state:
-        st.session_state.audio_transcription = ""
-    if "audio_recorded_bytes" not in st.session_state:
-        st.session_state.audio_recorded_bytes = None
+    # Inicializar estado
+    for _k, _v in [("audio_transcription", ""), ("audio_recorded_bytes", None), ("audio_recorder_key", 0)]:
+        if _k not in st.session_state:
+            st.session_state[_k] = _v
 
+    # Botón limpiar ANTES del recorder para que al hacer rerun el widget se monte fresco
+    if st.session_state.audio_recorded_bytes or st.session_state.audio_transcription:
+        if st.button("🗑️ Nueva grabación", help="Borra el audio y la transcripción para grabar de nuevo"):
+            st.session_state.audio_transcription = ""
+            st.session_state.audio_recorded_bytes = None
+            st.session_state.audio_recorder_key += 1   # cambia la key → React desmonta el widget
+            st.rerun()
+
+    # El key dinámico fuerza reinicio del componente React al limpiar
     audio_bytes = render_audio_recorder()
 
-    # Detectar nueva grabación (diferente a la almacenada)
+    # Nueva grabación detectada
     if audio_bytes and audio_bytes != st.session_state.audio_recorded_bytes:
         st.session_state.audio_recorded_bytes = audio_bytes
-        st.session_state.audio_transcription = ""   # reset transcripción anterior
+        st.session_state.audio_transcription = ""
         with st.spinner("Transcribiendo audio…"):
             try:
-                transcribed = transcribe_audio_bytes(audio_bytes)
-                st.session_state.audio_transcription = transcribed
+                st.session_state.audio_transcription = transcribe_audio_bytes(audio_bytes)
                 st.success("Transcripción completada.")
             except RuntimeError as e:
                 st.error(str(e))
@@ -498,24 +501,15 @@ with audio_tab:
         st.audio(st.session_state.audio_recorded_bytes, format="audio/wav")
 
     if st.session_state.audio_transcription:
-        col_txt, col_clr = st.columns([5, 1])
-        with col_txt:
-            edited = st.text_area(
-                "Texto reconocido (editable):",
-                value=st.session_state.audio_transcription,
-                height=140,
-                key="transcribed_edit",
-                label_visibility="collapsed",
-            )
-            st.session_state.audio_transcription = edited
-        with col_clr:
-            st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-            if st.button("🗑️ Limpiar", help="Borra la grabación y la transcripción para empezar de nuevo",
-                         use_container_width=True):
-                st.session_state.audio_transcription = ""
-                st.session_state.audio_recorded_bytes = None
-                st.rerun()
-        input_text = st.session_state.audio_transcription
+        edited = st.text_area(
+            "Texto reconocido (editable):",
+            value=st.session_state.audio_transcription,
+            height=140,
+            key=f"transcribed_edit_{st.session_state.audio_recorder_key}",
+            label_visibility="collapsed",
+        )
+        st.session_state.audio_transcription = edited
+        input_text = edited
 
 # ── PASO 2: Analizar ──────────────────────────────────────────────────────────
 st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
