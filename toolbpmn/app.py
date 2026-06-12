@@ -7,7 +7,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from config import get_api_key, get_model, set_api_key, set_model
+from config import get_api_key, get_model, set_api_key, set_model, is_cloud
 from file_readers import extract_text
 from audio_input import render_audio_recorder, transcribe_audio_bytes
 from analyzer import analyze_process, validate_process_json
