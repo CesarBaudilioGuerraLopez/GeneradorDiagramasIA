@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="https://unpkg.com/bpmn-js@9.4.1/dist/assets/diagram-js.css" />
+  <link rel="stylesheet" href="https://unpkg.com/bpmn-js@9.4.1/dist/assets/bpmn-js.css" />
+  <link rel="stylesheet" href="https://unpkg.com/bpmn-js@9.4.1/dist/assets/bpmn-font/css/bpmn-embedded.css" />
+  <script src="https://unpkg.com/bpmn-js@9.4.1/dist/bpmn-modeler.development.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0; height: 100%;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #f4f6f9;
+    }
+    #wrap {
+      display: flex; flex-direction: column; height: 100%;
+      border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden;
+      background: #fff;
+    }
+    #toolbar {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      padding: 8px 12px; background: #002D5F; color: #fff;
+    }
+    #toolbar span { font-size: 12px; opacity: .85; flex: 1; min-width: 180px; }
+    button {
+      border: none; border-radius: 6px; padding: 7px 12px; font-size: 12px;
+      font-weight: 600; cursor: pointer;
+    }
+    #btn-save { background: #00A651; color: #fff; }
+    #btn-save:hover { filter: brightness(1.08); }
+    #btn-fit { background: rgba(255,255,255,.15); color: #fff; }
+    #btn-fit:hover { background: rgba(255,255,255,.25); }
+    #status {
+      font-size: 11px; padding: 2px 8px; border-radius: 12px;
+      background: rgba(255,255,255,.12);
+    }
+    #status.ok { background: rgba(0,166,81,.35); }
+    #status.err { background: rgba(231,76,60,.45); }
+    #canvas { flex: 1; min-height: 480px; background: #fafbfc; }
+    .bjs-powered-by { display: none !important; }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <div id="toolbar">
+      <span>Editor visual BPMN — agrega tareas, lanes (carriles) y conecta con la paleta</span>
+      <span id="status">Listo</span>
+      <button id="btn-fit" type="button">Ajustar vista</button>
+      <button id="btn-save" type="button">Guardar en el proceso</button>
+    </div>
+    <div id="canvas"></div>
+  </div>
+
+  <script>
+    // Protocolo Streamlit custom component (postMessage)
+    function sendMessageToStreamlitClient(type, data) {
+      const outData = Object.assign({ isStreamlitMessage: true, type: type }, data);
+      window.parent.postMessage(outData, "*");
+    }
+    function initStreamlit() {
+      sendMessageToStreamlitClient("streamlit:componentReady", { apiVersion: 1 });
+    }
+    function setFrameHeight(height) {
+      sendMessageToStreamlitClient("streamlit:setFrameHeight", { height: height });
+    }
+    function sendData(value) {
+      sendMessageToStreamlitClient("streamlit:setComponentValue", { value: value });
+    }
+
+    const statusEl = document.getElementById("status");
+    function setStatus(msg, cls) {
+      statusEl.textContent = msg;
+      statusEl.className = cls || "";
+    }
+
+    let modeler = null;
+    let lastXml = "";
+    let loadedXml = "";
+
+    function ensureModeler() {
+      if (modeler) return modeler;
+      modeler = new BpmnJS({ container: "#canvas" });
+      modeler.on("commandStack.changed", function () {
+        setStatus("Cambios sin guardar", "");
+      });
+      return modeler;
+    }
+
+    async function loadXml(xml) {
+      if (!xml || !xml.trim()) {
+        setStatus("Sin XML", "err");
+        return;
+      }
+      // Evitar recargar el mismo XML (borra edicion en curso)
+      if (xml === loadedXml) return;
+      const m = ensureModeler();
+      try {
+        await m.importXML(xml);
+        loadedXml = xml;
+        lastXml = xml;
+        const canvas = m.get("canvas");
+        canvas.zoom("fit-viewport", "auto");
+        setStatus("Diagrama cargado", "ok");
+      } catch (err) {
+        console.error(err);
+        setStatus("Error al cargar BPMN", "err");
+      }
+    }
+
+    async function saveToApp() {
+      const m = ensureModeler();
+      try {
+        const result = await m.saveXML({ format: true });
+        const xml = result.xml;
+        lastXml = xml;
+        loadedXml = xml;
+        sendData({ xml: xml, ts: Date.now() });
+        setStatus("Guardado — aplica en la app", "ok");
+      } catch (err) {
+        console.error(err);
+        setStatus("Error al guardar", "err");
+      }
+    }
+
+    document.getElementById("btn-save").addEventListener("click", saveToApp);
+    document.getElementById("btn-fit").addEventListener("click", function () {
+      if (!modeler) return;
+      modeler.get("canvas").zoom("fit-viewport", "auto");
+    });
+
+    window.addEventListener("message", function (event) {
+      const data = event.data;
+      if (!data || data.type !== "streamlit:render") return;
+      const args = data.args || {};
+      const h = args.height || 620;
+      document.getElementById("wrap").style.height = h + "px";
+      document.getElementById("canvas").style.minHeight = Math.max(400, h - 50) + "px";
+      setFrameHeight(h + 8);
+      if (args.xml) {
+        loadXml(args.xml);
+      }
+    });
+
+    initStreamlit();
+    setFrameHeight(628);
+  </script>
+</body>
+</html>

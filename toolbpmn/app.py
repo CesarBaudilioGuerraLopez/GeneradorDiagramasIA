@@ -695,22 +695,78 @@ elif st.session_state.process_data and _has_name:
     st.session_state.process_data = normalize_process_data(st.session_state.process_data)
 
     # ── PASO 4: Diagrama ──────────────────────────────────────────────────────
-    _step(3, "", "Diagrama preliminar")
-    c_gen, _ = st.columns([3, 7])
+    _step(3, "", "Diagrama y editor visual")
+    st.caption(
+        "Genera el diagrama y editalo en el modelador: agrega tareas, carriles (lanes) "
+        "y conexiones. Pulsa **Guardar en el proceso** dentro del editor para aplicar."
+    )
+    c_gen, c_hint = st.columns([3, 7])
     with c_gen:
-        if st.button("Generar diagrama", type="primary", use_container_width=True):
+        if st.button("Generar / actualizar diagrama", type="primary", use_container_width=True):
             with st.spinner("Renderizando diagrama..."):
                 try:
                     st.session_state.diagram_png = _render_diagram(st.session_state.process_data)
-                    st.session_state.bpmn_xml    = _generate_bpmn(st.session_state.process_data)
+                    st.session_state.bpmn_xml = _generate_bpmn(st.session_state.process_data)
+                    st.session_state.bpmn_editor_key = st.session_state.get("bpmn_editor_key", 0) + 1
                     st.success("Diagrama generado.")
                 except Exception as e:
                     st.error(f"Error al generar diagrama: {e}")
                     with st.expander("Detalle del error"):
                         st.code(traceback.format_exc())
+    with c_hint:
+        st.info(
+            "En el editor: usa la paleta a la izquierda del lienzo. "
+            "Clic derecho en un carril para **Append Lane**. "
+            "Arrastra flechas entre actividades para conectar."
+        )
+
+    # Asegurar XML aunque solo exista process_data
+    if st.session_state.process_data and not st.session_state.bpmn_xml:
+        try:
+            st.session_state.bpmn_xml = _generate_bpmn(st.session_state.process_data)
+        except Exception:
+            pass
+
+    if st.session_state.bpmn_xml:
+        try:
+            from bpmn_editor_ui import render_bpmn_editor
+            from bpmn_parser import parse_bpmn_to_process_data
+
+            editor_key = f"bpmn_ed_{st.session_state.get('bpmn_editor_key', 0)}"
+            result = render_bpmn_editor(
+                st.session_state.bpmn_xml,
+                height=640,
+                key=editor_key,
+            )
+            if result and isinstance(result, dict) and result.get("xml"):
+                new_xml = result["xml"]
+                # Evitar reaplicar el mismo guardado en cada rerun
+                if new_xml != st.session_state.get("_last_saved_bpmn_xml"):
+                    try:
+                        updated = parse_bpmn_to_process_data(
+                            new_xml, st.session_state.process_data
+                        )
+                        updated = normalize_process_data(updated)
+                        st.session_state.process_data = updated
+                        st.session_state.bpmn_xml = new_xml
+                        st.session_state._last_saved_bpmn_xml = new_xml
+                        st.session_state.diagram_png = _render_diagram(updated)
+                        st.success(
+                            "Proceso actualizado desde el editor visual "
+                            f"({len(updated.get('roles', []))} roles, "
+                            f"{len(updated.get('pasos', []))} pasos)."
+                        )
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"No se pudo aplicar el BPMN editado: {e}")
+                        with st.expander("Detalle"):
+                            st.code(traceback.format_exc())
+        except Exception as e:
+            st.warning(f"Editor visual no disponible: {e}")
 
     if st.session_state.diagram_png:
-        st.image(st.session_state.diagram_png, use_container_width=True)
+        with st.expander("Vista previa PNG", expanded=False):
+            st.image(st.session_state.diagram_png, use_container_width=True)
 
     # ── PASO 5: Exportar ──────────────────────────────────────────────────────
     _step(4, "", "Exportar")
