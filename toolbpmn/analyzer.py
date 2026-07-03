@@ -56,14 +56,33 @@ def _parse_raw(raw: str) -> dict[str, Any]:
     except json.JSONDecodeError as e:
         raise ValueError(f"Claude no devolvió JSON válido: {e}\n\nRespuesta:\n{raw[:500]}")
 
-    for paso in data.get("pasos", []):
+    def _s(v, default=""):
+        return default if v is None else str(v)
+
+    for key in ("nombre_proceso", "descripcion", "objetivo", "alcance"):
+        data[key] = _s(data.get(key))
+
+    for paso in data.get("pasos") or []:
+        for key in ("id", "nombre", "tipo", "rol_id", "unidad_tiempo",
+                    "descripcion", "documentacion", "condicion"):
+            if paso.get(key) is None:
+                paso[key] = ""
         paso.setdefault("tiempo_ejecucion", 0)
+        if paso.get("tiempo_ejecucion") is None:
+            paso["tiempo_ejecucion"] = 0
         paso.setdefault("unidad_tiempo", "minutos")
+        if not paso.get("unidad_tiempo"):
+            paso["unidad_tiempo"] = "minutos"
         paso.setdefault("documentacion", "")
         paso.setdefault("condicion", "")
+        if not isinstance(paso.get("siguiente"), list):
+            paso["siguiente"] = []
 
-    data.setdefault("objetivo", "")
-    data.setdefault("alcance", "")
+    for rol in data.get("roles") or []:
+        for key in ("id", "nombre", "descripcion"):
+            if rol.get(key) is None:
+                rol[key] = ""
+
     return data
 
 

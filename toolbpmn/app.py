@@ -581,24 +581,30 @@ if st.session_state.process_data:
   </div>
 </div>""", unsafe_allow_html=True)
 
+    def _str(v, default=""):
+        """Streamlit text_input/text_area no aceptan None."""
+        if v is None:
+            return default
+        return str(v)
+
     ca, cb = st.columns([2, 4])
     with ca:
-        nn = st.text_input("Nombre del proceso", value=data.get("nombre_proceso",""))
-        if nn != data.get("nombre_proceso"):
+        nn = st.text_input("Nombre del proceso", value=_str(data.get("nombre_proceso")))
+        if nn != _str(data.get("nombre_proceso")):
             st.session_state.process_data["nombre_proceso"] = nn
     with cb:
-        nd = st.text_area("Descripcion / Objetivo", value=data.get("descripcion",""), height=70)
-        if nd != data.get("descripcion"):
+        nd = st.text_area("Descripcion / Objetivo", value=_str(data.get("descripcion")), height=70)
+        if nd != _str(data.get("descripcion")):
             st.session_state.process_data["descripcion"] = nd
 
     cc, cd = st.columns(2)
     with cc:
-        no = st.text_area("Objetivo", value=data.get("objetivo",""), height=65)
-        if no != data.get("objetivo"):
+        no = st.text_area("Objetivo", value=_str(data.get("objetivo")), height=65)
+        if no != _str(data.get("objetivo")):
             st.session_state.process_data["objetivo"] = no
     with cd:
-        na = st.text_area("Alcance", value=data.get("alcance",""), height=65)
-        if na != data.get("alcance"):
+        na = st.text_area("Alcance", value=_str(data.get("alcance")), height=65)
+        if na != _str(data.get("alcance")):
             st.session_state.process_data["alcance"] = na
 
     # ── Helpers para leer celdas del DataFrame con seguridad ─────────────────
@@ -630,9 +636,9 @@ if st.session_state.process_data:
         st.caption("Doble clic para editar un campo. Usa el boton + para agregar roles nuevos.")
         roles_raw = data.get("roles", [])
         roles_df  = pd.DataFrame([{
-            "id":          r.get("id", f"role_{i+1}"),
-            "nombre":      r.get("nombre", ""),
-            "descripcion": r.get("descripcion", ""),
+            "id":          _str(r.get("id"), f"role_{i+1}"),
+            "nombre":      _str(r.get("nombre")),
+            "descripcion": _str(r.get("descripcion")),
         } for i, r in enumerate(roles_raw)])
         if roles_df.empty:
             roles_df = pd.DataFrame(columns=["id", "nombre", "descripcion"])
@@ -675,16 +681,16 @@ if st.session_state.process_data:
             rol_opts.append(rid)
             rol_opts_set.add(rid)
     pasos_df  = pd.DataFrame([{
-        "id":               p["id"],
-        "nombre":           p.get("nombre", ""),
-        "tipo":             p.get("tipo", "tarea"),
-        "rol_id":           p.get("rol_id", ""),
+        "id":               _str(p.get("id")),
+        "nombre":           _str(p.get("nombre")),
+        "tipo":             _str(p.get("tipo"), "tarea") or "tarea",
+        "rol_id":           _str(p.get("rol_id")),
         "tiempo_ejecucion": int(p.get("tiempo_ejecucion", 0) or 0),
-        "unidad_tiempo":    p.get("unidad_tiempo", "minutos"),
-        "descripcion":      p.get("descripcion", ""),
-        "condicion":        p.get("condicion", ""),
-        "documentacion":    p.get("documentacion", ""),
-        "siguiente":        ", ".join(p.get("siguiente", [])),
+        "unidad_tiempo":    _str(p.get("unidad_tiempo"), "minutos") or "minutos",
+        "descripcion":      _str(p.get("descripcion")),
+        "condicion":        _str(p.get("condicion")),
+        "documentacion":    _str(p.get("documentacion")),
+        "siguiente":        ", ".join(p.get("siguiente") or []),
     } for p in pasos_raw])
 
     tipo_opts   = ["tarea", "decision", "inicio", "fin", "subproceso", "evento"]

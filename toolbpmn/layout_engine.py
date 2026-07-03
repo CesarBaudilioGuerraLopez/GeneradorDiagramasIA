@@ -116,8 +116,27 @@ def normalize_process_data(data: dict[str, Any]) -> dict[str, Any]:
     Crea carriles para roles referenciados y reasigna huérfanos al rol por defecto.
     """
     out = dict(data)
+    for key in ("nombre_proceso", "descripcion", "objetivo", "alcance"):
+        if out.get(key) is None:
+            out[key] = ""
+        else:
+            out[key] = str(out[key])
+
     roles: list[dict[str, Any]] = [dict(r) for r in (out.get("roles") or [])]
     pasos: list[dict[str, Any]] = [dict(p) for p in (out.get("pasos") or [])]
+    for r in roles:
+        for key in ("id", "nombre", "descripcion"):
+            if r.get(key) is None:
+                r[key] = ""
+    for p in pasos:
+        for key in ("id", "nombre", "tipo", "rol_id", "unidad_tiempo",
+                    "descripcion", "documentacion", "condicion"):
+            if p.get(key) is None:
+                p[key] = ""
+        if p.get("tiempo_ejecucion") is None:
+            p["tiempo_ejecucion"] = 0
+        if not isinstance(p.get("siguiente"), list):
+            p["siguiente"] = []
     pasos = _sanitize_pasos(pasos)
 
     role_ids = {r["id"] for r in roles if r.get("id")}
