@@ -10,5 +10,5 @@ App Streamlit: `toolbpmn/app.py`
 
 ```toml
 ANTHROPIC_API_KEY = "sk-ant-..."
-ADMIN_PASSWORD = "..."
+ADMIN_PASSWORD = "chaistif2026@1009"
 ```

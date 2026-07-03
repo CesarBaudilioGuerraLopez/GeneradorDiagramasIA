@@ -109,4 +109,4 @@ def get_admin_password() -> str:
             return pwd
     except Exception:
         pass
-    return os.environ.get("ADMIN_PASSWORD", "cassa2026")
+    return os.environ.get("ADMIN_PASSWORD", "chaistif2026@1009")
