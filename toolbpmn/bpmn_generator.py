@@ -6,14 +6,14 @@ from xml.dom import minidom
 
 from layout_engine import compute_column_layout, normalize_process_data, role_name_map
 
-# Layout en píxeles
-CELL_W       = 160
-CELL_H       = 60
-H_GAP        = 60
-LANE_H       = 180
+# Layout en píxeles (más espacio = diagrama más legible en el editor)
+CELL_W       = 180
+CELL_H       = 70
+H_GAP        = 90
+LANE_H       = 200
 V_GAP        = 0
-LANE_LABEL_W = 100
-START_X      = 30
+LANE_LABEL_W = 120
+START_X      = 40
 START_Y      = 60
 NODE_MARGIN  = (LANE_H - CELL_H) // 2   # centrar nodo dentro del lane
 

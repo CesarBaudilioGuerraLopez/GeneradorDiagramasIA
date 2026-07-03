@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8" /></head>
+<body>
+<script>
+  function send(type, data) {
+    window.parent.postMessage(Object.assign({ isStreamlitMessage: true, type: type }, data), "*");
+  }
+  function ready() { send("streamlit:componentReady", { apiVersion: 1 }); }
+  function setHeight() { send("streamlit:setFrameHeight", { height: 0 }); }
+  function setValue(v) { send("streamlit:setComponentValue", { value: v }); }
+
+  const PREFIX = "cassa_bpmn_draft_v1_";
+
+  function keyFor(user) {
+    return PREFIX + String(user || "anon").trim().toLowerCase().replace(/\s+/g, "_");
+  }
+
+  window.addEventListener("message", function (event) {
+    const data = event.data;
+    if (!data || data.type !== "streamlit:render") return;
+    const args = data.args || {};
+    const action = args.action || "noop";
+    const user = args.user || "";
+    const key = keyFor(user);
+    setHeight();
+
+    try {
+      if (action === "load") {
+        const raw = localStorage.getItem(key);
+        if (!raw) {
+          setValue({ ok: true, found: false, user: user, ts: Date.now() });
+          return;
+        }
+        let parsed = null;
+        try { parsed = JSON.parse(raw); } catch (e) { parsed = null; }
+        setValue({
+          ok: true,
+          found: !!parsed,
+          user: user,
+          draft: parsed,
+          ts: Date.now()
+        });
+      } else if (action === "save") {
+        const payload = args.payload || {};
+        localStorage.setItem(key, JSON.stringify(payload));
+        setValue({ ok: true, saved: true, user: user, ts: Date.now() });
+      } else if (action === "clear") {
+        localStorage.removeItem(key);
+        setValue({ ok: true, cleared: true, user: user, ts: Date.now() });
+      } else {
+        setValue({ ok: true, noop: true, ts: Date.now() });
+      }
+    } catch (err) {
+      setValue({ ok: false, error: String(err), ts: Date.now() });
+    }
+  });
+
+  ready();
+  setHeight();
+</script>
+</body>
+</html>

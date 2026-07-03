@@ -16,48 +16,124 @@
     }
     #wrap {
       display: flex; flex-direction: column; height: 100%;
-      border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden;
-      background: #fff;
+      border: 1px solid #cbd5e1; border-radius: 12px; overflow: hidden;
+      background: #fff; box-shadow: 0 2px 10px rgba(0,45,95,.08);
     }
     #toolbar {
-      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-      padding: 8px 12px; background: #002D5F; color: #fff;
+      display: flex; flex-direction: column; gap: 6px;
+      padding: 8px 10px; background: linear-gradient(135deg,#002D5F,#004B9A);
+      color: #fff;
     }
-    #toolbar span { font-size: 12px; opacity: .85; flex: 1; min-width: 180px; }
-    button {
-      border: none; border-radius: 6px; padding: 7px 12px; font-size: 12px;
-      font-weight: 600; cursor: pointer;
+    .tb-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .tb-label {
+      font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
+      opacity: .7; margin-right: 2px; min-width: 52px;
     }
-    #btn-save { background: #00A651; color: #fff; }
-    #btn-save:hover { filter: brightness(1.08); }
-    #btn-fit { background: rgba(255,255,255,.15); color: #fff; }
-    #btn-fit:hover { background: rgba(255,255,255,.25); }
+    button.tb {
+      border: none; border-radius: 7px; padding: 7px 11px; font-size: 12px;
+      font-weight: 650; cursor: pointer; display: inline-flex; align-items: center;
+      gap: 5px; transition: transform .1s, filter .1s;
+    }
+    button.tb:hover { filter: brightness(1.08); transform: translateY(-1px); }
+    button.tb:active { transform: translateY(0); }
+    button.tb:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+    .g-zoom button { background: #1e3a5f; color: #e2e8f0; border: 1px solid #334155; }
+    .g-add .t-task { background: #2980b9; color: #fff; }
+    .g-add .t-dec  { background: #f39c12; color: #fff; }
+    .g-add .t-start{ background: #27ae60; color: #fff; }
+    .g-add .t-end  { background: #e74c3c; color: #fff; }
+    .g-add .t-lane { background: #8e44ad; color: #fff; }
+    .g-add .t-conn { background: #16a085; color: #fff; }
+    #btn-save { background: #00A651; color: #fff; margin-left: auto; }
+    #btn-undo { background: #475569; color: #fff; }
+    #btn-redo { background: #475569; color: #fff; }
     #status {
-      font-size: 11px; padding: 2px 8px; border-radius: 12px;
-      background: rgba(255,255,255,.12);
+      font-size: 11px; padding: 3px 10px; border-radius: 20px;
+      background: rgba(255,255,255,.14); white-space: nowrap;
     }
-    #status.ok { background: rgba(0,166,81,.35); }
-    #status.err { background: rgba(231,76,60,.45); }
-    #canvas { flex: 1; min-height: 480px; background: #fafbfc; }
+    #status.ok { background: rgba(0,166,81,.4); }
+    #status.err { background: rgba(231,76,60,.5); }
+    #status.warn { background: rgba(243,156,18,.45); }
+    #legend {
+      display: flex; gap: 10px; flex-wrap: wrap; font-size: 11px; opacity: .95;
+    }
+    #legend i {
+      display: inline-block; width: 10px; height: 10px; border-radius: 2px;
+      margin-right: 4px; vertical-align: -1px;
+    }
+    #canvas { flex: 1; min-height: 520px; background:
+      linear-gradient(90deg, rgba(0,75,154,.03) 1px, transparent 1px) 0 0 / 24px 24px,
+      linear-gradient(rgba(0,75,154,.03) 1px, transparent 1px) 0 0 / 24px 24px, #f8fafc;
+    }
     .bjs-powered-by { display: none !important; }
+
+    /* Colores por tipo de elemento */
+    .djs-element.djs-shape[data-element-id] .djs-visual > rect { stroke-width: 2px; }
+    .cassa-task .djs-visual > rect {
+      fill: #d6eaf8 !important; stroke: #2980b9 !important;
+    }
+    .cassa-start .djs-visual > circle {
+      fill: #d5f5e3 !important; stroke: #27ae60 !important; stroke-width: 3px !important;
+    }
+    .cassa-end .djs-visual > circle {
+      fill: #fadbd8 !important; stroke: #e74c3c !important; stroke-width: 4px !important;
+    }
+    .cassa-gateway .djs-visual > polygon {
+      fill: #fdebd0 !important; stroke: #f39c12 !important; stroke-width: 2px !important;
+    }
+    .cassa-lane .djs-visual > rect {
+      fill: rgba(232,240,250,.55) !important; stroke: #7f8c8d !important;
+    }
+    .djs-connection .djs-visual > path {
+      stroke: #34495e !important; stroke-width: 2px !important;
+    }
+    .hint {
+      font-size: 11px; opacity: .8; width: 100%;
+    }
   </style>
 </head>
 <body>
   <div id="wrap">
     <div id="toolbar">
-      <span>Editor visual BPMN — agrega tareas, lanes (carriles) y conecta con la paleta</span>
-      <span id="status">Listo</span>
-      <button id="btn-fit" type="button">Ajustar vista</button>
-      <button id="btn-save" type="button">Guardar en el proceso</button>
+      <div class="tb-row">
+        <span class="tb-label">Zoom</span>
+        <span class="g-zoom">
+          <button class="tb" id="btn-zoom-out" type="button" title="Alejar">−</button>
+          <button class="tb" id="btn-zoom-in" type="button" title="Acercar">+</button>
+          <button class="tb" id="btn-fit" type="button">Ajustar</button>
+          <button class="tb" id="btn-zoom-100" type="button">100%</button>
+        </span>
+        <button class="tb" id="btn-undo" type="button">Deshacer</button>
+        <button class="tb" id="btn-redo" type="button">Rehacer</button>
+        <span id="status">Listo</span>
+        <button class="tb" id="btn-save" type="button">Guardar en el proceso</button>
+      </div>
+      <div class="tb-row g-add">
+        <span class="tb-label">Agregar</span>
+        <button class="tb t-task" id="btn-add-task" type="button">+ Actividad</button>
+        <button class="tb t-dec" id="btn-add-gateway" type="button">+ Decision</button>
+        <button class="tb t-start" id="btn-add-start" type="button">+ Inicio</button>
+        <button class="tb t-end" id="btn-add-end" type="button">+ Fin</button>
+        <button class="tb t-lane" id="btn-add-lane" type="button">+ Carril (Lane)</button>
+        <button class="tb t-conn" id="btn-connect" type="button">Conectar</button>
+      </div>
+      <div class="tb-row">
+        <div id="legend">
+          <span><i style="background:#2980b9"></i>Actividad</span>
+          <span><i style="background:#f39c12"></i>Decision</span>
+          <span><i style="background:#27ae60"></i>Inicio</span>
+          <span><i style="background:#e74c3c"></i>Fin</span>
+          <span><i style="background:#8e44ad"></i>Carril</span>
+        </div>
+        <span class="hint">Rueda del mouse = zoom · Arrastra el fondo = mover · Doble clic en nombre = renombrar</span>
+      </div>
     </div>
     <div id="canvas"></div>
   </div>
 
   <script>
-    // Protocolo Streamlit custom component (postMessage)
     function sendMessageToStreamlitClient(type, data) {
-      const outData = Object.assign({ isStreamlitMessage: true, type: type }, data);
-      window.parent.postMessage(outData, "*");
+      window.parent.postMessage(Object.assign({ isStreamlitMessage: true, type: type }, data), "*");
     }
     function initStreamlit() {
       sendMessageToStreamlitClient("streamlit:componentReady", { apiVersion: 1 });
@@ -76,16 +152,133 @@
     }
 
     let modeler = null;
-    let lastXml = "";
     let loadedXml = "";
+    let connectMode = false;
 
     function ensureModeler() {
       if (modeler) return modeler;
-      modeler = new BpmnJS({ container: "#canvas" });
-      modeler.on("commandStack.changed", function () {
-        setStatus("Cambios sin guardar", "");
+      modeler = new BpmnJS({
+        container: "#canvas",
+        keyboard: { bindTo: document }
       });
+      modeler.on("commandStack.changed", function () {
+        setStatus("Cambios sin guardar", "warn");
+        applyColors();
+      });
+      modeler.on("selection.changed", function () {
+        applyColors();
+      });
+      // Zoom con rueda (sin Ctrl)
+      const canvas = modeler.get("canvas");
+      const container = document.getElementById("canvas");
+      container.addEventListener("wheel", function (e) {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        const current = canvas.zoom();
+        const next = Math.min(4, Math.max(0.2, current + delta));
+        canvas.zoom(next, { x: e.offsetX, y: e.offsetY });
+      }, { passive: false });
       return modeler;
+    }
+
+    function applyColors() {
+      if (!modeler) return;
+      const registry = modeler.get("elementRegistry");
+      registry.forEach(function (el) {
+        const gfx = registry.getGraphics(el);
+        if (!gfx) return;
+        gfx.classList.remove("cassa-task", "cassa-start", "cassa-end", "cassa-gateway", "cassa-lane");
+        if (el.type === "bpmn:Task" || el.type === "bpmn:UserTask" || el.type === "bpmn:ServiceTask") {
+          gfx.classList.add("cassa-task");
+        } else if (el.type === "bpmn:StartEvent") {
+          gfx.classList.add("cassa-start");
+        } else if (el.type === "bpmn:EndEvent") {
+          gfx.classList.add("cassa-end");
+        } else if ((el.type || "").indexOf("Gateway") >= 0) {
+          gfx.classList.add("cassa-gateway");
+        } else if (el.type === "bpmn:Lane") {
+          gfx.classList.add("cassa-lane");
+        }
+      });
+    }
+
+    function getParticipant() {
+      const registry = modeler.get("elementRegistry");
+      return registry.find(function (e) { return e.type === "bpmn:Participant"; });
+    }
+
+    function getLanes() {
+      const registry = modeler.get("elementRegistry");
+      return registry.filter(function (e) { return e.type === "bpmn:Lane"; });
+    }
+
+    function getParentForNewShape() {
+      const selection = modeler.get("selection").get();
+      if (selection.length) {
+        const s = selection[0];
+        if (s.type === "bpmn:Lane") return s;
+        if (s.parent && s.parent.type === "bpmn:Lane") return s.parent;
+      }
+      const lanes = getLanes();
+      if (lanes.length) return lanes[0];
+      return getParticipant() || modeler.get("canvas").getRootElement();
+    }
+
+    function placePoint(parent) {
+      const x = (parent.x || 0) + 120 + Math.random() * 80;
+      const y = (parent.y || 0) + (parent.height || 120) / 2;
+      return { x: x, y: y };
+    }
+
+    function addShape(type, name) {
+      const m = ensureModeler();
+      const factory = m.get("elementFactory");
+      const modeling = m.get("modeling");
+      const parent = getParentForNewShape();
+      const shape = factory.createShape({ type: type });
+      const pos = placePoint(parent);
+      const created = modeling.createShape(shape, pos, parent);
+      if (name) modeling.updateLabel(created, name);
+      m.get("selection").select(created);
+      applyColors();
+      setStatus("Agregado: " + (name || type), "ok");
+    }
+
+    function addLane() {
+      const m = ensureModeler();
+      const modeling = m.get("modeling");
+      const lanes = getLanes();
+      const participant = getParticipant();
+      try {
+        if (lanes.length) {
+          modeling.addLane(lanes[lanes.length - 1], "bottom");
+        } else if (participant) {
+          modeling.addLane(participant, "bottom");
+        } else {
+          setStatus("No hay pool/carril base", "err");
+          return;
+        }
+        applyColors();
+        setStatus("Carril agregado", "ok");
+      } catch (err) {
+        console.error(err);
+        setStatus("No se pudo agregar carril", "err");
+      }
+    }
+
+    function toggleConnect() {
+      const m = ensureModeler();
+      const globalConnect = m.get("globalConnect");
+      connectMode = !connectMode;
+      const btn = document.getElementById("btn-connect");
+      if (connectMode) {
+        globalConnect.start(null);
+        btn.style.outline = "2px solid #fff";
+        setStatus("Modo conectar: clic origen y destino", "warn");
+      } else {
+        btn.style.outline = "";
+        setStatus("Modo conectar off", "");
+      }
     }
 
     async function loadXml(xml) {
@@ -93,15 +286,14 @@
         setStatus("Sin XML", "err");
         return;
       }
-      // Evitar recargar el mismo XML (borra edicion en curso)
       if (xml === loadedXml) return;
       const m = ensureModeler();
       try {
         await m.importXML(xml);
         loadedXml = xml;
-        lastXml = xml;
         const canvas = m.get("canvas");
         canvas.zoom("fit-viewport", "auto");
+        applyColors();
         setStatus("Diagrama cargado", "ok");
       } catch (err) {
         console.error(err);
@@ -113,38 +305,59 @@
       const m = ensureModeler();
       try {
         const result = await m.saveXML({ format: true });
-        const xml = result.xml;
-        lastXml = xml;
-        loadedXml = xml;
-        sendData({ xml: xml, ts: Date.now() });
-        setStatus("Guardado — aplica en la app", "ok");
+        loadedXml = result.xml;
+        sendData({ xml: result.xml, ts: Date.now() });
+        setStatus("Guardado en el proceso", "ok");
       } catch (err) {
         console.error(err);
         setStatus("Error al guardar", "err");
       }
     }
 
-    document.getElementById("btn-save").addEventListener("click", saveToApp);
-    document.getElementById("btn-fit").addEventListener("click", function () {
-      if (!modeler) return;
-      modeler.get("canvas").zoom("fit-viewport", "auto");
-    });
+    function zoomBy(delta) {
+      const canvas = ensureModeler().get("canvas");
+      const current = canvas.zoom();
+      canvas.zoom(Math.min(4, Math.max(0.2, current + delta)));
+    }
+
+    document.getElementById("btn-zoom-in").onclick = function () { zoomBy(0.15); };
+    document.getElementById("btn-zoom-out").onclick = function () { zoomBy(-0.15); };
+    document.getElementById("btn-fit").onclick = function () {
+      ensureModeler().get("canvas").zoom("fit-viewport", "auto");
+    };
+    document.getElementById("btn-zoom-100").onclick = function () {
+      ensureModeler().get("canvas").zoom(1);
+    };
+    document.getElementById("btn-undo").onclick = function () {
+      ensureModeler().get("commandStack").undo();
+      applyColors();
+    };
+    document.getElementById("btn-redo").onclick = function () {
+      ensureModeler().get("commandStack").redo();
+      applyColors();
+    };
+    document.getElementById("btn-add-task").onclick = function () { addShape("bpmn:Task", "Nueva actividad"); };
+    document.getElementById("btn-add-gateway").onclick = function () { addShape("bpmn:ExclusiveGateway", "Decision"); };
+    document.getElementById("btn-add-start").onclick = function () { addShape("bpmn:StartEvent", "Inicio"); };
+    document.getElementById("btn-add-end").onclick = function () { addShape("bpmn:EndEvent", "Fin"); };
+    document.getElementById("btn-add-lane").onclick = addLane;
+    document.getElementById("btn-connect").onclick = toggleConnect;
+    document.getElementById("btn-save").onclick = saveToApp;
 
     window.addEventListener("message", function (event) {
       const data = event.data;
       if (!data || data.type !== "streamlit:render") return;
       const args = data.args || {};
-      const h = args.height || 620;
+      const h = args.height || 700;
       document.getElementById("wrap").style.height = h + "px";
-      document.getElementById("canvas").style.minHeight = Math.max(400, h - 50) + "px";
-      setFrameHeight(h + 8);
-      if (args.xml) {
-        loadXml(args.xml);
-      }
+      document.getElementById("canvas").style.minHeight = Math.max(480, h - 110) + "px";
+      setFrameHeight(h + 10);
+      if (args.forceReload) loadedXml = "";
+      if (args.xml) loadXml(args.xml);
     });
 
     initStreamlit();
-    setFrameHeight(628);
+    setFrameHeight(710);
   </script>
 </body>
 </html>

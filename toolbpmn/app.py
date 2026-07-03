@@ -62,6 +62,43 @@ def _generate_bpmn(data):
     return generate_bpmn(data)
 
 
+def _process_fingerprint(data: dict) -> str:
+    """Huella del proceso para sincronizar tablas ↔ diagrama."""
+    import hashlib
+    slim = {
+        "nombre": data.get("nombre_proceso"),
+        "roles": [
+            {"id": r.get("id"), "nombre": r.get("nombre")}
+            for r in (data.get("roles") or [])
+        ],
+        "pasos": [
+            {
+                "id": p.get("id"),
+                "nombre": p.get("nombre"),
+                "tipo": p.get("tipo"),
+                "rol_id": p.get("rol_id"),
+                "siguiente": p.get("siguiente") or [],
+            }
+            for p in (data.get("pasos") or [])
+        ],
+    }
+    raw = json.dumps(slim, sort_keys=True, ensure_ascii=False)
+    return hashlib.md5(raw.encode("utf-8")).hexdigest()
+
+
+def _sync_tables_to_diagram():
+    """Regenera XML/PNG ordenados desde las tablas."""
+    data = st.session_state.process_data
+    if not data:
+        return
+    st.session_state.bpmn_xml = _generate_bpmn(data)
+    st.session_state.diagram_png = _render_diagram(data)
+    st.session_state.bpmn_editor_key = st.session_state.get("bpmn_editor_key", 0) + 1
+    st.session_state._last_saved_bpmn_xml = st.session_state.bpmn_xml
+    st.session_state._data_fp = _process_fingerprint(data)
+    st.session_state._sync_source = "table"
+
+
 def _b64(path):
     return base64.b64encode(path.read_bytes()).decode()
 
@@ -210,6 +247,78 @@ if not _has_name:
         f'y analizarlo con Claude.</div>',
         unsafe_allow_html=True,
     )
+
+# ── Borrador en el navegador (retomar tras recargar la pagina) ─────────────────
+if _has_name:
+    from draft_store import draft_load, draft_save, draft_clear, build_draft_payload
+
+    _user = st.session_state["user_name"]
+    if st.session_state.get("_draft_user") != _user:
+        st.session_state._draft_user = _user
+        st.session_state.draft_resolved = False
+        st.session_state.draft_pending = None
+        st.session_state.pop("_draft_load_done", None)
+
+    if not st.session_state.get("draft_resolved") and not st.session_state.get("draft_pending"):
+        _load_res = draft_load(_user, key=f"dload_{_user}")
+        if _load_res is None:
+            st.info("Buscando si tienes un proceso guardado en este navegador...")
+            st.stop()
+
+        if _load_res.get("found") and _load_res.get("draft") and _load_res["draft"].get("process_data"):
+            st.session_state.draft_pending = _load_res["draft"]
+        else:
+            st.session_state.draft_resolved = True
+
+    if st.session_state.get("draft_pending") and not st.session_state.get("draft_resolved"):
+        _d = st.session_state.draft_pending
+        st.markdown(
+            f'<div style="background:#E8F4FD;border:1px solid #AED6F1;border-left:4px solid {CASSA_BLUE};'
+            f'border-radius:10px;padding:14px 16px;margin:8px 0 14px">'
+            f'<div style="font-weight:700;color:{CASSA_DARK};margin-bottom:4px">'
+            f'Proceso guardado encontrado</div>'
+            f'<div style="color:#334155;font-size:.92rem">'
+            f'<b>{_d.get("nombre_proceso", "Proceso")}</b> · '
+            f'{_d.get("n_pasos", 0)} pasos · {_d.get("n_roles", 0)} roles<br>'
+            f'<span style="color:#64748b;font-size:.85rem">Guardado: {_d.get("saved_at", "")}</span>'
+            f'</div></div>',
+            unsafe_allow_html=True,
+        )
+        st.caption("La pagina se recargo o se cerro. Puedes retomar el proceso o empezar de cero.")
+        _c1, _c2, _ = st.columns([2, 2, 4])
+        with _c1:
+            if st.button("Continuar proceso guardado", type="primary", use_container_width=True):
+                st.session_state.process_data = _d.get("process_data")
+                st.session_state.bpmn_xml = _d.get("bpmn_xml")
+                st.session_state.diagram_png = None
+                if st.session_state.process_data:
+                    try:
+                        st.session_state.diagram_png = _render_diagram(st.session_state.process_data)
+                        if not st.session_state.bpmn_xml:
+                            st.session_state.bpmn_xml = _generate_bpmn(st.session_state.process_data)
+                    except Exception:
+                        pass
+                st.session_state.bpmn_editor_key = st.session_state.get("bpmn_editor_key", 0) + 1
+                st.session_state._last_saved_bpmn_xml = st.session_state.bpmn_xml
+                st.session_state._data_fp = _process_fingerprint(st.session_state.process_data or {})
+                st.session_state._sync_source = "diagram"
+                st.session_state.draft_resolved = True
+                st.session_state.draft_pending = None
+                st.rerun()
+        with _c2:
+            if st.button("Iniciar proceso nuevo", use_container_width=True):
+                draft_clear(_user, key=f"dclear_{_user}_{int(time.time())}")
+                st.session_state.process_data = None
+                st.session_state.bpmn_xml = None
+                st.session_state.diagram_png = None
+                st.session_state.audio_segments = []
+                st.session_state.audio_pending_bytes = None
+                st.session_state.audio_unified_text = ""
+                st.session_state.draft_resolved = True
+                st.session_state.draft_pending = None
+                st.session_state.pop("_data_fp", None)
+                st.rerun()
+        st.stop()
 
 # ── PASO 1: Entrada ───────────────────────────────────────────────────────────
 _step(1, "", "Describe tu proceso")
@@ -512,7 +621,41 @@ elif st.session_state.process_data and _has_name:
     nombre    = data.get("nombre_proceso", "")
     decisions = sum(1 for p in data.get("pasos",[]) if p.get("tipo") == "decision")
 
+    # Guardar borrador automaticamente en el navegador
+    try:
+        from draft_store import draft_save, draft_clear, build_draft_payload
+        _fp_draft = _process_fingerprint(data)
+        draft_save(
+            st.session_state["user_name"],
+            build_draft_payload(data, st.session_state.get("bpmn_xml")),
+            key=f"dsave_{st.session_state['user_name']}_{_fp_draft}",
+        )
+    except Exception:
+        pass
+
     _step(2, "", "Revisa y edita el proceso")
+    _bn1, _bn2, _ = st.columns([2, 2, 4])
+    with _bn1:
+        st.caption("Borrador guardado en este navegador (se recupera si recargas).")
+    with _bn2:
+        if st.button("Iniciar proceso nuevo", key="btn_new_process"):
+            try:
+                from draft_store import draft_clear
+                draft_clear(
+                    st.session_state["user_name"],
+                    key=f"dclear_new_{st.session_state['user_name']}_{int(time.time())}",
+                )
+            except Exception:
+                pass
+            for _k in ("process_data", "bpmn_xml", "diagram_png", "_data_fp",
+                       "_last_saved_bpmn_xml", "_sync_source", "_sync_banner"):
+                st.session_state[_k] = None if _k != "_data_fp" else None
+            st.session_state.audio_segments = []
+            st.session_state.audio_pending_bytes = None
+            st.session_state.audio_unified_text = ""
+            st.session_state.draft_resolved = True
+            st.session_state.draft_pending = None
+            st.rerun()
 
     st.markdown(f"""
 <div style="display:flex;gap:11px;margin-bottom:14px;flex-wrap:wrap">
@@ -694,36 +837,66 @@ elif st.session_state.process_data and _has_name:
     st.session_state.process_data["pasos"] = pasos_up
     st.session_state.process_data = normalize_process_data(st.session_state.process_data)
 
+    # Sincronización tablas → diagrama (si cambiaron roles/pasos/conexiones)
+    _fp_now = _process_fingerprint(st.session_state.process_data)
+    if _fp_now != st.session_state.get("_data_fp"):
+        if st.session_state.get("_sync_source") != "diagram":
+            try:
+                _sync_tables_to_diagram()
+                st.session_state._sync_banner = (
+                    "Tablas → diagrama: se reordeno el diagrama automaticamente."
+                )
+            except Exception:
+                st.session_state._data_fp = _fp_now
+        else:
+            # Ya venimos del diagrama; solo actualizar huella
+            st.session_state._data_fp = _fp_now
+            st.session_state._sync_source = None
+
     # ── PASO 4: Diagrama ──────────────────────────────────────────────────────
     _step(3, "", "Diagrama y editor visual")
     st.caption(
-        "Genera el diagrama y editalo en el modelador: agrega tareas, carriles (lanes) "
-        "y conexiones. Pulsa **Guardar en el proceso** dentro del editor para aplicar."
+        "Edita en **tablas** o en el **diagrama**: ambos se sincronizan. "
+        "En el editor usa zoom, botones de color y **Guardar en el proceso**."
     )
-    c_gen, c_hint = st.columns([3, 7])
+
+    if st.session_state.get("_sync_banner"):
+        st.success(st.session_state._sync_banner)
+        st.session_state._sync_banner = ""
+
+    c_gen, c_ord, c_hint = st.columns([2, 2, 5])
     with c_gen:
         if st.button("Generar / actualizar diagrama", type="primary", use_container_width=True):
-            with st.spinner("Renderizando diagrama..."):
+            with st.spinner("Ordenando y renderizando..."):
                 try:
-                    st.session_state.diagram_png = _render_diagram(st.session_state.process_data)
-                    st.session_state.bpmn_xml = _generate_bpmn(st.session_state.process_data)
-                    st.session_state.bpmn_editor_key = st.session_state.get("bpmn_editor_key", 0) + 1
-                    st.success("Diagrama generado.")
+                    st.session_state._sync_source = "table"
+                    _sync_tables_to_diagram()
+                    st.session_state._sync_banner = "Diagrama generado y ordenado."
+                    st.rerun()
                 except Exception as e:
                     st.error(f"Error al generar diagrama: {e}")
                     with st.expander("Detalle del error"):
                         st.code(traceback.format_exc())
+    with c_ord:
+        if st.button("Reordenar diagrama", use_container_width=True,
+                     help="Recalcula posiciones limpias desde las tablas"):
+            try:
+                st.session_state._sync_source = "table"
+                _sync_tables_to_diagram()
+                st.session_state._sync_banner = "Diagrama reordenado."
+                st.rerun()
+            except Exception as e:
+                st.error(str(e))
     with c_hint:
         st.info(
-            "En el editor: usa la paleta a la izquierda del lienzo. "
-            "Clic derecho en un carril para **Append Lane**. "
-            "Arrastra flechas entre actividades para conectar."
+            "Zoom: botones +/− o rueda del mouse · "
+            "Colores: actividad azul, decision naranja, inicio verde, fin rojo, carril morado."
         )
 
     # Asegurar XML aunque solo exista process_data
     if st.session_state.process_data and not st.session_state.bpmn_xml:
         try:
-            st.session_state.bpmn_xml = _generate_bpmn(st.session_state.process_data)
+            _sync_tables_to_diagram()
         except Exception:
             pass
 
@@ -735,12 +908,12 @@ elif st.session_state.process_data and _has_name:
             editor_key = f"bpmn_ed_{st.session_state.get('bpmn_editor_key', 0)}"
             result = render_bpmn_editor(
                 st.session_state.bpmn_xml,
-                height=640,
+                height=720,
                 key=editor_key,
+                force_reload=False,
             )
             if result and isinstance(result, dict) and result.get("xml"):
                 new_xml = result["xml"]
-                # Evitar reaplicar el mismo guardado en cada rerun
                 if new_xml != st.session_state.get("_last_saved_bpmn_xml"):
                     try:
                         updated = parse_bpmn_to_process_data(
@@ -751,8 +924,10 @@ elif st.session_state.process_data and _has_name:
                         st.session_state.bpmn_xml = new_xml
                         st.session_state._last_saved_bpmn_xml = new_xml
                         st.session_state.diagram_png = _render_diagram(updated)
-                        st.success(
-                            "Proceso actualizado desde el editor visual "
+                        st.session_state._data_fp = _process_fingerprint(updated)
+                        st.session_state._sync_source = "diagram"
+                        st.session_state._sync_banner = (
+                            "Diagrama → tablas: proceso actualizado "
                             f"({len(updated.get('roles', []))} roles, "
                             f"{len(updated.get('pasos', []))} pasos)."
                         )
@@ -765,7 +940,7 @@ elif st.session_state.process_data and _has_name:
             st.warning(f"Editor visual no disponible: {e}")
 
     if st.session_state.diagram_png:
-        with st.expander("Vista previa PNG", expanded=False):
+        with st.expander("Vista previa PNG (exportable)", expanded=False):
             st.image(st.session_state.diagram_png, use_container_width=True)
 
     # ── PASO 5: Exportar ──────────────────────────────────────────────────────

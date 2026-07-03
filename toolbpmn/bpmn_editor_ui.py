@@ -18,8 +18,9 @@ _bpmn_editor = components.declare_component(
 def render_bpmn_editor(
     xml: str,
     *,
-    height: int = 620,
+    height: int = 700,
     key: Optional[str] = None,
+    force_reload: bool = False,
 ) -> Any:
     """
     Muestra el modelador bpmn-js.
@@ -28,6 +29,7 @@ def render_bpmn_editor(
     return _bpmn_editor(
         xml=xml or "",
         height=height,
+        forceReload=force_reload,
         key=key,
         default=None,
     )
