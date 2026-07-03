@@ -593,17 +593,17 @@ if st.session_state.process_data:
         if nn != _str(data.get("nombre_proceso")):
             st.session_state.process_data["nombre_proceso"] = nn
     with cb:
-        nd = st.text_area("Descripcion / Objetivo", value=_str(data.get("descripcion")), height=70)
+        nd = st.text_area("Descripcion / Objetivo", value=_str(data.get("descripcion")), height=80)
         if nd != _str(data.get("descripcion")):
             st.session_state.process_data["descripcion"] = nd
 
     cc, cd = st.columns(2)
     with cc:
-        no = st.text_area("Objetivo", value=_str(data.get("objetivo")), height=65)
+        no = st.text_area("Objetivo", value=_str(data.get("objetivo")), height=80)
         if no != _str(data.get("objetivo")):
             st.session_state.process_data["objetivo"] = no
     with cd:
-        na = st.text_area("Alcance", value=_str(data.get("alcance")), height=65)
+        na = st.text_area("Alcance", value=_str(data.get("alcance")), height=80)
         if na != _str(data.get("alcance")):
             st.session_state.process_data["alcance"] = na
 
