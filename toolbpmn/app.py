@@ -45,8 +45,7 @@ def _b64(path):
 def _css():
     st.markdown(f"""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-html, body, [class*="css"] {{ font-family: 'Inter','Segoe UI',sans-serif; }}
+html, body, [class*="css"] {{ font-family: 'Segoe UI', system-ui, sans-serif; }}
 .stApp {{ background-color: #F4F6F9; }}
 .cassa-hdr {{
   background: linear-gradient(135deg,{CASSA_DARK},{CASSA_BLUE} 60%,#1565C0);
@@ -320,8 +319,8 @@ with tab_file:
 
 with tab_mic:
     st.info(
-        "Graba tu voz por segmentos. Cuando termines un bloque, "
-        "guarda el segmento y continua grabando el siguiente."
+        "Graba tu voz por segmentos. Detén la grabación, "
+        "pulsa **Guardar segmento y continuar**, y graba el siguiente bloque."
     )
 
     if st.session_state.audio_segments or st.session_state.audio_pending_bytes:
@@ -332,8 +331,12 @@ with tab_mic:
             st.session_state.audio_recorder_key += 1
             st.rerun()
 
-    audio = render_audio_recorder(key=st.session_state.audio_recorder_key)
-    if audio:
+    try:
+        audio = render_audio_recorder(key=st.session_state.audio_recorder_key)
+    except Exception as _audio_err:
+        st.warning(f"Micrófono no disponible: {_audio_err}")
+        audio = None
+    if audio and audio != st.session_state.audio_pending_bytes:
         st.session_state.audio_pending_bytes = audio
 
     pending = st.session_state.audio_pending_bytes
@@ -725,11 +728,8 @@ if st.session_state.process_data:
 
     # ── PASO 5: Exportar ──────────────────────────────────────────────────────
     _step(4, "", "Exportar")
-    if not st.session_state.bpmn_xml:
-        try:
-            st.session_state.bpmn_xml = generate_bpmn(st.session_state.process_data)
-        except Exception:
-            pass
+    if not st.session_state.bpmn_xml and not st.session_state.diagram_png:
+        st.caption("Genera el diagrama para habilitar la descarga .bpmn y .png.")
 
     slug = (data.get("nombre_proceso","proceso")
             .lower().replace(" ","_").replace("/","-")[:38])

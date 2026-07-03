@@ -6,12 +6,12 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+st.set_page_config(page_title="Admin — BPMN Tool", page_icon="📊", layout="wide")
+
 from config import get_admin_password
 
 # ── Protección por contraseña ─────────────────────────────────────────────────
 ADMIN_PASSWORD = get_admin_password()
-
-st.set_page_config(page_title="Admin — BPMN Tool", page_icon="📊", layout="wide")
 
 CASSA_BLUE = "#004B9A"
 CASSA_DARK = "#002D5F"
