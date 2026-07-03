@@ -178,19 +178,38 @@ if not is_cloud() and not api_key:
 elif is_cloud() and not api_key:
     st.error("API Key no configurada en Streamlit Secrets.")
 
-# Nombre para el registro de uso (no se muestra barra lateral)
-_name_col, _ = st.columns([2, 5])
+# Nombre obligatorio para registro de uso
+st.markdown(
+    f'<div style="font-size:.85rem;font-weight:600;color:{CASSA_DARK};'
+    f'margin:4px 0 6px">Digita tu nombre <span style="color:#e74c3c">*</span></div>',
+    unsafe_allow_html=True,
+)
+_name_col, _name_msg = st.columns([2, 5])
 with _name_col:
     _uname = st.text_input(
-        "Tu nombre (para registro de uso)",
+        "Digita tu nombre",
         value=st.session_state.get("user_name", ""),
         placeholder="Ej: Juan Perez",
         label_visibility="collapsed",
+        key="user_name_input",
     )
-    if _uname.strip():
-        st.session_state["user_name"] = _uname.strip()
-    elif "user_name" not in st.session_state:
-        st.session_state["user_name"] = "Anonimo"
+    st.session_state["user_name"] = _uname.strip()
+
+_has_name = bool(st.session_state.get("user_name", "").strip())
+with _name_msg:
+    if _has_name:
+        st.success(f"Usuario: **{st.session_state['user_name']}**")
+    else:
+        st.warning("Digita tu nombre para continuar.")
+
+if not _has_name:
+    st.markdown(
+        f'<div style="background:#FFF3CD;border:1px solid #FFECB5;border-left:4px solid #f39c12;'
+        f'border-radius:8px;padding:10px 14px;margin:4px 0 12px;color:#856404;font-size:.9rem">'
+        f'<b>Nombre obligatorio.</b> Escribe tu nombre arriba para poder describir el proceso '
+        f'y analizarlo con Claude.</div>',
+        unsafe_allow_html=True,
+    )
 
 # ── PASO 1: Entrada ───────────────────────────────────────────────────────────
 _step(1, "", "Describe tu proceso")
@@ -208,8 +227,9 @@ with tab_txt:
             "si es mayor la envia a Finanzas..."
         ),
         label_visibility="collapsed",
+        disabled=not _has_name,
     )
-    if txt:
+    if txt and _has_name:
         input_text = txt
 
 with tab_file:
@@ -232,8 +252,9 @@ with tab_file:
         "Sube un archivo:",
         type=["docx", "xlsx", "xls", "txt", "md"],
         label_visibility="collapsed",
+        disabled=not _has_name,
     )
-    if uploaded:
+    if uploaded and _has_name:
         try:
             extracted, meta = extract_text(uploaded, uploaded.name)
             if meta.get("modo") == "plantilla":
@@ -267,12 +288,14 @@ with tab_file:
             st.error(f"Error leyendo archivo: {e}")
 
 with tab_mic:
+    if not _has_name:
+        st.warning("Digita tu nombre arriba para habilitar el microfono.")
     st.info(
         "Graba tu voz por segmentos. Detén la grabación, "
         "pulsa **Guardar segmento y continuar**, y graba el siguiente bloque."
     )
 
-    if st.session_state.audio_segments or st.session_state.audio_pending_bytes:
+    if _has_name and (st.session_state.audio_segments or st.session_state.audio_pending_bytes):
         if st.button("Limpiar todo el audio", help="Borra todos los segmentos grabados"):
             st.session_state.audio_segments = []
             st.session_state.audio_pending_bytes = None
@@ -280,15 +303,17 @@ with tab_mic:
             st.session_state.audio_recorder_key += 1
             st.rerun()
 
-    try:
-        audio = render_audio_recorder(key=st.session_state.audio_recorder_key)
-    except Exception as _audio_err:
-        st.warning(f"Micrófono no disponible: {_audio_err}")
-        audio = None
-    if audio and audio != st.session_state.audio_pending_bytes:
+    audio = None
+    if _has_name:
+        try:
+            audio = render_audio_recorder(key=st.session_state.audio_recorder_key)
+        except Exception as _audio_err:
+            st.warning(f"Micrófono no disponible: {_audio_err}")
+            audio = None
+    if _has_name and audio and audio != st.session_state.audio_pending_bytes:
         st.session_state.audio_pending_bytes = audio
 
-    pending = st.session_state.audio_pending_bytes
+    pending = st.session_state.audio_pending_bytes if _has_name else None
     if pending:
         st.audio(pending, format="audio/wav")
         if st.button("Guardar segmento y continuar", type="primary"):
@@ -382,17 +407,22 @@ with c1:
     btn_analyze = st.button(
         "Analizar con Claude",
         type="primary",
-        disabled=(not input_text.strip() or not api_key),
+        disabled=(not _has_name or not input_text.strip() or not api_key),
         use_container_width=True,
     )
 with c2:
-    if not api_key:
+    if not _has_name:
+        st.warning("Digita tu nombre para continuar.")
+    elif not api_key:
         st.warning("API Key no configurada.")
     elif not input_text.strip():
         st.info("Ingresa la descripcion del proceso.")
 
-if btn_analyze and input_text.strip() and api_key:
-    _usuario = st.session_state.get("user_name", "Anonimo")
+if btn_analyze and _has_name and input_text.strip() and api_key:
+    _usuario = st.session_state.get("user_name", "").strip()
+    if not _usuario:
+        st.error("Digita tu nombre para continuar.")
+        st.stop()
     _metodo  = (
         "archivo" if uploaded
         else "microfono" if st.session_state.get("audio_segments")
@@ -475,7 +505,9 @@ if btn_analyze and input_text.strip() and api_key:
                 )
 
 # ── PASO 3: Editar ────────────────────────────────────────────────────────────
-if st.session_state.process_data:
+if st.session_state.process_data and not _has_name:
+    st.warning("Digita tu nombre para continuar editando el proceso.")
+elif st.session_state.process_data and _has_name:
     data      = st.session_state.process_data
     nombre    = data.get("nombre_proceso", "")
     decisions = sum(1 for p in data.get("pasos",[]) if p.get("tipo") == "decision")
