@@ -4,6 +4,8 @@ import uuid
 from typing import Any
 from xml.dom import minidom
 
+from layout_engine import compute_column_layout, normalize_process_data, role_name_map
+
 # Layout en píxeles
 CELL_W       = 160
 CELL_H       = 60
@@ -22,16 +24,19 @@ def _uid() -> str:
 
 def generate_bpmn(data: dict[str, Any]) -> str:
     """Genera XML BPMN 2.0 importable en Bizagi. Retorna string UTF-8."""
+    data       = normalize_process_data(data)
     roles      = data.get("roles", [])
     pasos      = data.get("pasos", [])
+    rol_names  = role_name_map(roles)
     proc_name  = data.get("nombre_proceso", "Proceso")
     proc_id    = f"Process_{_uid()}"
     diag_id    = f"BPMNDiagram_{_uid()}"
     plane_id   = f"BPMNPlane_{_uid()}"
     laneset_id = f"LaneSet_{_uid()}"
 
-    # ── Posiciones de nodos ───────────────────────────────────────────────────
-    pos = _layout(pasos, roles)
+    # ── Posiciones de nodos (mismo algoritmo que el PNG) ─────────────────────
+    col_map = compute_column_layout(pasos)
+    pos = _layout_from_columns(pasos, roles, col_map)
 
     # ── Construir incoming / outgoing por nodo ────────────────────────────────
     incoming: dict[str, list[str]] = {p["id"]: [] for p in pasos}
@@ -118,7 +123,7 @@ def generate_bpmn(data: dict[str, Any]) -> str:
         tipo = paso.get("tipo", "tarea")
 
         # <documentation> con toda la ficha del paso
-        doc_text = _build_step_doc(paso)
+        doc_text = _build_step_doc(paso, rol_names)
         doc_xml  = f'      <documentation>{_xe(doc_text)}</documentation>\n' if doc_text else ""
 
         inc_xml  = "".join(f'      <incoming>{sf}</incoming>\n' for sf in incoming[pid])
@@ -282,9 +287,12 @@ def _xe(value: str) -> str:
     )
 
 
-def _build_step_doc(paso: dict) -> str:
+def _build_step_doc(paso: dict, rol_names: dict[str, str] | None = None) -> str:
     """Construye el texto de <documentation> para un paso."""
     lines = []
+    rid = paso.get("rol_id", "")
+    if rid and rol_names and rid in rol_names:
+        lines.append(f"Responsable: {rol_names[rid]}")
     if paso.get("descripcion"):
         lines.append(f"Descripción: {paso['descripcion']}")
 
@@ -314,58 +322,33 @@ def _build_process_doc(data: dict) -> str:
     return "\n".join(lines)
 
 
-def _layout(pasos: list, roles: list) -> dict[str, tuple[int, int]]:
-    """BFS de izquierda a derecha; y centrado dentro del lane de su rol."""
+def _layout_from_columns(
+    pasos: list,
+    roles: list,
+    col_map: dict[str, int],
+) -> dict[str, tuple[int, int]]:
+    """Convierte columnas topológicas a coordenadas BPMN DI."""
     role_index = {r["id"]: i for i, r in enumerate(roles)}
-    n_roles    = max(len(roles), 1)
-    pos        = {}
-    visited    = set()
+    pos: dict[str, tuple[int, int]] = {}
 
     def lane_top(rid: str) -> int:
         i = role_index.get(rid, 0)
         return START_Y + i * LANE_H
 
-    def traverse(pid: str, depth: int):
-        if pid in visited:
-            return
-        visited.add(pid)
-        paso = next((p for p in pasos if p["id"] == pid), None)
-        if not paso:
-            return
-        rid = paso.get("rol_id", "")
-        x   = START_X + LANE_LABEL_W + depth * (CELL_W + H_GAP) + H_GAP // 2
-
-        tipo = paso.get("tipo", "tarea")
-        if tipo in ("inicio", "fin"):
-            nh = 36
-        elif tipo == "decision":
-            nh = 50
-        else:
-            nh = CELL_H
-
-        y = lane_top(rid) + (LANE_H - nh) // 2
-        pos[pid]     = (x, y)
-        paso["_col"] = depth
-        for nxt in paso.get("siguiente", []):
-            traverse(nxt, depth + 1)
-
-    starts = [p["id"] for p in pasos if p.get("tipo") == "inicio"]
-    if not starts and pasos:
-        starts = [pasos[0]["id"]]
-    for s in starts:
-        traverse(s, 0)
-
-    # Nodos huérfanos
-    extra_col = max((p.get("_col", 0) for p in pasos), default=0) + 1
+    extra_col = max(col_map.values(), default=0) + 1
     for paso in pasos:
-        if paso["id"] not in pos:
-            rid  = paso.get("rol_id", "")
-            tipo = paso.get("tipo", "tarea")
-            nh   = 36 if tipo in ("inicio","fin") else (50 if tipo=="decision" else CELL_H)
-            pos[paso["id"]] = (
-                START_X + LANE_LABEL_W + extra_col * (CELL_W + H_GAP),
-                lane_top(rid) + (LANE_H - nh) // 2,
-            )
+        pid = paso["id"]
+        col = col_map.get(pid, extra_col)
+        if pid not in col_map:
             extra_col += 1
+
+        rid = paso.get("rol_id", roles[0]["id"] if roles else "")
+        tipo = paso.get("tipo", "tarea")
+        nh = 36 if tipo in ("inicio", "fin") else (50 if tipo == "decision" else CELL_H)
+
+        x = START_X + LANE_LABEL_W + col * (CELL_W + H_GAP) + H_GAP // 2
+        y = lane_top(rid) + (LANE_H - nh) // 2
+        pos[pid] = (x, y)
+        paso["_col"] = col
 
     return pos

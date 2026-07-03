@@ -99,3 +99,14 @@ def set_model(model: str) -> None:
 
 def is_cloud() -> bool:
     return _is_cloud()
+
+
+def get_admin_password() -> str:
+    try:
+        import streamlit as st
+        pwd = st.secrets.get("ADMIN_PASSWORD", "")
+        if pwd:
+            return pwd
+    except Exception:
+        pass
+    return os.environ.get("ADMIN_PASSWORD", "cassa2026")

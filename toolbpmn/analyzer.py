@@ -7,7 +7,7 @@ from typing import Any, Generator
 import anthropic
 
 # Límite de caracteres del texto de entrada antes de truncar
-_MAX_INPUT_CHARS = 8_000
+_MAX_INPUT_CHARS = 16_000
 
 SYSTEM_PROMPT = """Eres un experto en modelado de procesos de negocio (BPM) y notación BPMN 2.0.
 Analiza la descripción del proceso y devuelve ÚNICAMENTE un JSON válido con esta estructura, sin texto adicional:
@@ -69,11 +69,12 @@ def _parse_raw(raw: str) -> dict[str, Any]:
 
 def analyze_process_stream(
     text: str, api_key: str, model: str = "claude-sonnet-4-6"
-) -> Generator[tuple[int, int, str | None], None, None]:
+) -> Generator[tuple[int, int, str | None, dict | None], None, None]:
     """
     Streaming de la respuesta de Claude.
-    Yields: (chars_generados, total_estimado, json_final_o_None)
-    El último yield tiene json_final distinto de None.
+    Yields: (chars_generados, total_estimado, json_final_o_None, usage_o_None)
+    El último yield tiene json_final y usage distintos de None.
+    usage = {"input_tokens": N, "output_tokens": N}
     """
     client = anthropic.Anthropic(api_key=api_key)
     user_msg = (
@@ -82,8 +83,8 @@ def analyze_process_stream(
     )
 
     raw = ""
-    # Estimamos ~2000 tokens de salida = ~1500 chars como referencia de progreso
     estimated_total = 1500
+    usage: dict | None = None
 
     with client.messages.stream(
         model=model,
@@ -93,13 +94,26 @@ def analyze_process_stream(
     ) as stream:
         for chunk in stream.text_stream:
             raw += chunk
-            yield len(raw), estimated_total, None
+            yield len(raw), estimated_total, None, None
+        try:
+            final_msg = stream.get_final_message()
+            usage = {
+                "input_tokens":  final_msg.usage.input_tokens,
+                "output_tokens": final_msg.usage.output_tokens,
+            }
+        except Exception:
+            usage = {"input_tokens": 0, "output_tokens": 0}
 
-    yield len(raw), len(raw), _parse_raw(raw)
+    yield len(raw), len(raw), _parse_raw(raw), usage
 
 
-def analyze_process(text: str, api_key: str, model: str = "claude-sonnet-4-6") -> dict[str, Any]:
-    """Versión síncrona sin streaming (compatibilidad)."""
+def analyze_process(
+    text: str, api_key: str, model: str = "claude-sonnet-4-6"
+) -> tuple[dict[str, Any], dict]:
+    """
+    Versión síncrona sin streaming.
+    Retorna (data, usage) donde usage = {"input_tokens": N, "output_tokens": N}.
+    """
     client = anthropic.Anthropic(api_key=api_key)
     user_msg = (
         "Analiza este proceso y devuelve el JSON estructurado completo:\n\n"
@@ -111,7 +125,11 @@ def analyze_process(text: str, api_key: str, model: str = "claude-sonnet-4-6") -
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_msg}],
     )
-    return _parse_raw(message.content[0].text)
+    usage = {
+        "input_tokens":  message.usage.input_tokens,
+        "output_tokens": message.usage.output_tokens,
+    }
+    return _parse_raw(message.content[0].text), usage
 
 
 def validate_process_json(data: dict) -> list[str]:

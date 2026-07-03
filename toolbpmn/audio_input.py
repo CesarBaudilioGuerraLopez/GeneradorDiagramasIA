@@ -1,8 +1,8 @@
 """Captura de audio desde micrófono y conversión a texto."""
 
-import io
-import tempfile
 import os
+import tempfile
+from typing import Any
 
 
 def transcribe_audio_bytes(audio_bytes: bytes, language: str = "es-ES") -> str:
@@ -31,7 +31,7 @@ def transcribe_audio_bytes(audio_bytes: bytes, language: str = "es-ES") -> str:
         os.unlink(tmp_path)
 
 
-def render_audio_recorder():
+def render_audio_recorder(key: str | int = "default"):
     """
     Muestra el widget de grabación de audio en Streamlit.
     Retorna bytes del audio grabado o None si no hay grabación.
@@ -39,10 +39,11 @@ def render_audio_recorder():
     try:
         from audio_recorder_streamlit import audio_recorder
         return audio_recorder(
-            text="Haz clic para grabar tu proceso",
+            text="Haz clic para grabar",
             recording_color="#e74c3c",
             neutral_color="#2c3e50",
             icon_size="2x",
+            key=f"audio_rec_{key}",
         )
     except ImportError:
         import streamlit as st
@@ -51,3 +52,17 @@ def render_audio_recorder():
             "Ejecuta: `pip install audio-recorder-streamlit`"
         )
         return None
+
+
+def new_segment(segment_id: int, text: str = "", audio_bytes: bytes | None = None) -> dict[str, Any]:
+    return {
+        "id": segment_id,
+        "text": text,
+        "audio_bytes": audio_bytes,
+    }
+
+
+def merge_segment_texts(segments: list[dict[str, Any]], separator: str = "\n\n") -> str:
+    """Une los textos de todos los segmentos en orden."""
+    parts = [s.get("text", "").strip() for s in segments if s.get("text", "").strip()]
+    return separator.join(parts)

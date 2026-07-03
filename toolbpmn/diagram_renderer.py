@@ -3,6 +3,8 @@
 import io
 from typing import Any
 
+from layout_engine import compute_column_layout, normalize_process_data
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -21,14 +23,14 @@ LANE_BG = ["#ddeeff", "#fff8e1", "#e8f5e9", "#fce4ec",
 
 
 def render_diagram(data: dict[str, Any]) -> bytes:
+    data   = normalize_process_data(data)
     roles  = data.get("roles", [])
     pasos  = data.get("pasos", [])
     title  = data.get("nombre_proceso", "Proceso")
     n_roles = max(len(roles), 1)
     role_idx = {r["id"]: i for i, r in enumerate(roles)}
 
-    # ── Asignación de columnas (topological longest-path) ────────────────────
-    col_map = _topo_columns(pasos)
+    col_map = compute_column_layout(pasos)
     max_col = max(col_map.values(), default=0)
     n_cols  = max_col + 1
 
@@ -195,79 +197,6 @@ def render_diagram(data: dict[str, Any]) -> bytes:
     plt.close(fig)
     buf.seek(0)
     return buf.read()
-
-
-# ── Layout: topological longest-path ─────────────────────────────────────────
-
-def _topo_columns(pasos: list) -> dict[str, int]:
-    """Asigna columnas por longest-path desde el inicio (correcto para BPMN)."""
-    id_map  = {p["id"]: p for p in pasos}
-    all_ids = list(id_map.keys())
-
-    # Mapa de predecesores
-    pred: dict[str, list] = {pid: [] for pid in all_ids}
-    for p in pasos:
-        for nxt in p.get("siguiente", []):
-            if nxt in pred:
-                pred[nxt].append(p["id"])
-
-    # Orden topológico (Kahn)
-    in_deg = {pid: len(pred[pid]) for pid in all_ids}
-    ready  = sorted(pid for pid, d in in_deg.items() if d == 0)
-    topo: list[str] = []
-
-    while ready:
-        pid = ready.pop(0)
-        topo.append(pid)
-        for nxt in id_map.get(pid, {}).get("siguiente", []):
-            if nxt in in_deg:
-                in_deg[nxt] -= 1
-                if in_deg[nxt] == 0:
-                    ready.append(nxt)
-                    ready.sort()
-
-    # Nodos con ciclos o no alcanzados
-    topo.extend(pid for pid in all_ids if pid not in topo)
-
-    # Columna = max(col de predecesores) + 1
-    col_map: dict[str, int] = {}
-    for pid in topo:
-        preds = [p for p in pred.get(pid, []) if p in col_map]
-        col_map[pid] = (max(col_map[p] for p in preds) + 1) if preds else 0
-
-    # Resolver conflicto: mismo (col, lane) en el mismo rol
-    role_of = {p["id"]: p.get("rol_id", "") for p in pasos}
-    topo_pos = {pid: i for i, pid in enumerate(topo)}
-
-    for _ in range(len(pasos) * 3):
-        slot: dict[tuple, list] = {}
-        for pid, col in col_map.items():
-            slot.setdefault((col, role_of.get(pid, "")), []).append(pid)
-
-        conflict = False
-        for nodes in slot.values():
-            if len(nodes) > 1:
-                # Mantener el que viene primero en orden topológico
-                nodes.sort(key=lambda x: topo_pos.get(x, 999))
-                base = col_map[nodes[0]]
-                for i, pid in enumerate(nodes[1:], 1):
-                    if col_map[pid] < base + i:
-                        col_map[pid] = base + i
-                        conflict = True
-        if not conflict:
-            break
-
-    # Propagación final: col[nxt] > col[src]
-    changed = True
-    while changed:
-        changed = False
-        for p in pasos:
-            for nxt in p.get("siguiente", []):
-                if nxt in col_map and col_map[nxt] <= col_map[p["id"]]:
-                    col_map[nxt] = col_map[p["id"]] + 1
-                    changed = True
-
-    return col_map
 
 
 # ── Utilidades ────────────────────────────────────────────────────────────────

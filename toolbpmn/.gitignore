@@ -1,0 +1,23 @@
+# API key y configuración local — NUNCA subir al repo
+.cassa_config.json
+*.env
+.env.*
+secrets.toml
+
+# Archivos solo para Windows local
+start_server.bat
+setup_firewall_ADMIN.bat
+ACCESO_EQUIPO.txt
+README_INICIO.txt
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.egg-info/
+dist/
+build/
+
+# Streamlit cache local
+.streamlit/secrets.toml
