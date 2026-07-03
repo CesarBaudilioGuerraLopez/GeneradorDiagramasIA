@@ -182,7 +182,7 @@ with tab_an:
         df_show.columns      = ["Fecha/Hora", "Usuario", "Proceso", "Método",
                                  "Tok. entrada", "Tok. salida", "Tok. total",
                                  "Costo USD", "Duración (s)", "Modelo", "Éxito"]
-        st.dataframe(df_show, width="stretch", hide_index=True)
+        st.dataframe(df_show, use_container_width=True, hide_index=True)
 
         # Exportar a Excel
         buf = io.BytesIO()
@@ -206,7 +206,7 @@ with tab_exp:
         df_es = df_exp.copy()
         df_es["ts"] = df_es["ts"].dt.strftime("%Y-%m-%d %H:%M")
         df_es.columns = ["ID", "Fecha/Hora", "Usuario", "Proceso", "Tipo"]
-        st.dataframe(df_es, width="stretch", hide_index=True)
+        st.dataframe(df_es, use_container_width=True, hide_index=True)
 
         exp_counts = df_exp.groupby("tipo_export").size().reset_index(name="n")
         st.markdown("**Exportaciones por tipo**")

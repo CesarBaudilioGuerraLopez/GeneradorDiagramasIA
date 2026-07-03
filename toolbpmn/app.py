@@ -273,7 +273,7 @@ with tab_file:
                 data=TEMPLATE_PATH.read_bytes(),
                 file_name="Plantilla_Proceso_CASSA.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                width="stretch",
+                use_container_width=True,
             )
         with col_info:
             st.info("Usa la plantilla para que la herramienta identifique "
@@ -411,7 +411,7 @@ with tab_mic:
 
         st.session_state.audio_unified_text = merge_segment_texts(segments)
 
-        if st.button("Unificar todo", width="stretch"):
+        if st.button("Unificar todo", use_container_width=True):
             st.session_state.audio_unified_text = merge_segment_texts(segments)
             st.success("Texto unificado listo para analizar.")
 
@@ -434,7 +434,7 @@ with c1:
         "Analizar con Claude",
         type="primary",
         disabled=(not input_text.strip() or not api_key),
-        width="stretch",
+        use_container_width=True,
     )
 with c2:
     if not api_key:
@@ -622,7 +622,7 @@ if st.session_state.process_data:
             roles_df = pd.DataFrame(columns=["id", "nombre", "descripcion"])
 
         edited_roles = st.data_editor(
-            roles_df, width="stretch", num_rows="dynamic", hide_index=True,
+            roles_df, use_container_width=True, num_rows="dynamic", hide_index=True,
             column_config={
                 "id":          st.column_config.TextColumn("ID (clave)", width="small"),
                 "nombre":      st.column_config.TextColumn("Nombre del rol", width="medium"),
@@ -675,7 +675,7 @@ if st.session_state.process_data:
     unidad_opts = ["minutos", "horas", "dias"]
 
     edited_pasos = st.data_editor(
-        pasos_df, width="stretch", num_rows="dynamic", hide_index=True,
+        pasos_df, use_container_width=True, num_rows="dynamic", hide_index=True,
         column_config={
             "id":               st.column_config.TextColumn("ID", disabled=True, width="small"),
             "nombre":           st.column_config.TextColumn("Actividad", width="medium"),
@@ -711,7 +711,7 @@ if st.session_state.process_data:
     _step(3, "", "Diagrama preliminar")
     c_gen, _ = st.columns([3, 7])
     with c_gen:
-        if st.button("Generar diagrama", type="primary", width="stretch"):
+        if st.button("Generar diagrama", type="primary", use_container_width=True):
             with st.spinner("Renderizando diagrama..."):
                 try:
                     st.session_state.diagram_png = render_diagram(st.session_state.process_data)
@@ -724,7 +724,7 @@ if st.session_state.process_data:
                         st.code(traceback.format_exc())
 
     if st.session_state.diagram_png:
-        st.image(st.session_state.diagram_png, width="stretch")
+        st.image(st.session_state.diagram_png, use_container_width=True)
 
     # ── PASO 5: Exportar ──────────────────────────────────────────────────────
     _step(4, "", "Exportar")
@@ -742,7 +742,7 @@ if st.session_state.process_data:
                 "Descargar .bpmn - Bizagi",
                 data=st.session_state.bpmn_xml.encode("utf-8"),
                 file_name=f"{slug}.bpmn", mime="application/xml",
-                width="stretch",
+                use_container_width=True,
                 help="Archivo > Importar > BPMN 2.0 en Bizagi Modeler"):
                 log_export(_usuario_exp, _proc_exp, "bpmn")
     with e2:
@@ -751,7 +751,7 @@ if st.session_state.process_data:
                 "Descargar .png",
                 data=st.session_state.diagram_png,
                 file_name=f"{slug}.png", mime="image/png",
-                width="stretch"):
+                use_container_width=True):
                 log_export(_usuario_exp, _proc_exp, "png")
     with e3:
         if st.session_state.process_data:
@@ -760,7 +760,7 @@ if st.session_state.process_data:
                 data=json.dumps(st.session_state.process_data,
                                 ensure_ascii=False, indent=2).encode("utf-8"),
                 file_name=f"{slug}.json", mime="application/json",
-                width="stretch"):
+                use_container_width=True):
                 log_export(_usuario_exp, _proc_exp, "json")
 
     if st.session_state.bpmn_xml:
