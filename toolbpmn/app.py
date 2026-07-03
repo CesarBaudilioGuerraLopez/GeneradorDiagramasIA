@@ -1,26 +1,40 @@
 """BPMN Tool - Interfaz principal Streamlit con branding Grupo CASSA."""
 
+# set_page_config DEBE ir antes de imports pesados (matplotlib, etc.)
+# para que el health-check de Streamlit Cloud no falle.
+import streamlit as st
+
+st.set_page_config(
+    page_title="BPMN Tool - Grupo CASSA",
+    page_icon=":bar_chart:",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
 import base64
 import json
 import time
+import traceback
 from pathlib import Path
 
-import pandas as pd
-import streamlit as st
+try:
+    import pandas as pd
 
-from config import get_api_key, set_api_key, is_cloud
-from file_readers import extract_text
-from audio_input import (
-    render_audio_recorder,
-    transcribe_audio_bytes,
-    merge_segment_texts,
-    new_segment,
-)
-from analyzer import analyze_process, validate_process_json
-from bpmn_generator import generate_bpmn
-from diagram_renderer import render_diagram
-from layout_engine import normalize_process_data
-from logger import log_analysis, log_export
+    from config import get_api_key, set_api_key, is_cloud
+    from file_readers import extract_text
+    from audio_input import (
+        render_audio_recorder,
+        transcribe_audio_bytes,
+        merge_segment_texts,
+        new_segment,
+    )
+    from analyzer import analyze_process, validate_process_json
+    from layout_engine import normalize_process_data
+    from logger import log_analysis, log_export
+except Exception as _boot_err:
+    st.error("Error al iniciar la aplicacion.")
+    st.code(traceback.format_exc())
+    st.stop()
 
 try:
     from analyzer import analyze_process_stream
@@ -36,6 +50,16 @@ CASSA_GREEN = "#00A651"
 CASSA_LIGHT = "#E8F0FA"
 CASSA_DARK  = "#002D5F"
 MODEL       = "claude-sonnet-4-6"
+
+
+def _render_diagram(data):
+    from diagram_renderer import render_diagram
+    return render_diagram(data)
+
+
+def _generate_bpmn(data):
+    from bpmn_generator import generate_bpmn
+    return generate_bpmn(data)
 
 
 def _b64(path):
@@ -212,14 +236,6 @@ def _step(n, icon, title):
         f'<div class="step-title"><span class="step-badge">{n}</span>{icon} {title}</div>',
         unsafe_allow_html=True)
 
-
-# ── Configuracion de pagina ───────────────────────────────────────────────────
-st.set_page_config(
-    page_title="BPMN Tool - Grupo CASSA",
-    page_icon=":bar_chart:",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
 
 _css()
 _header()
@@ -714,11 +730,10 @@ if st.session_state.process_data:
         if st.button("Generar diagrama", type="primary", use_container_width=True):
             with st.spinner("Renderizando diagrama..."):
                 try:
-                    st.session_state.diagram_png = render_diagram(st.session_state.process_data)
-                    st.session_state.bpmn_xml    = generate_bpmn(st.session_state.process_data)
+                    st.session_state.diagram_png = _render_diagram(st.session_state.process_data)
+                    st.session_state.bpmn_xml    = _generate_bpmn(st.session_state.process_data)
                     st.success("Diagrama generado.")
                 except Exception as e:
-                    import traceback
                     st.error(f"Error al generar diagrama: {e}")
                     with st.expander("Detalle del error"):
                         st.code(traceback.format_exc())
