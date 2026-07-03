@@ -8,7 +8,7 @@ st.set_page_config(
     page_title="BPMN Tool - Grupo CASSA",
     page_icon=":bar_chart:",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 import base64
