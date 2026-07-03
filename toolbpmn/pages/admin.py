@@ -64,7 +64,7 @@ stats = summary_stats()
 
 st.markdown(f"""
 <h1 style='margin-bottom:4px'>Panel de Administracion</h1>
-<p style='color:#64748b;margin-top:0'>BPMN Tool — Grupo CASSA | Control de uso y consumo</p>
+<p style='color:#64748b;margin-top:0'>BPMN Tool — Grupo CASSA | Solo admin — uso, tokens y costo</p>
 """, unsafe_allow_html=True)
 
 c_logout, _ = st.columns([1, 9])
@@ -75,7 +75,51 @@ with c_logout:
 
 st.divider()
 
-k1, k2, k3, k4, k5, k6 = st.columns(6)
+# Totales de tokens (solo visibles aqui, no en la app publica)
+tok_in_total = int(df_an["tokens_entrada"].sum()) if not df_an.empty else 0
+tok_out_total = int(df_an["tokens_salida"].sum()) if not df_an.empty else 0
+tok_total = int(stats["tokens_totales"] or 0)
+n_an = int(stats["total_analisis"] or 0)
+avg_tok = (tok_total / n_an) if n_an else 0
+costo = float(stats["costo_total_usd"] or 0)
+
+st.markdown("### Consumo de tokens (solo admin)")
+t1, t2, t3, t4, t5 = st.columns(5)
+with t1:
+    st.markdown(f"""<div class="kpi">
+    <div class="kpi-label">Tokens entrada</div>
+    <div class="kpi-value">{tok_in_total:,}</div>
+    <div class="kpi-sub">input a Claude</div>
+    </div>""", unsafe_allow_html=True)
+with t2:
+    st.markdown(f"""<div class="kpi">
+    <div class="kpi-label">Tokens salida</div>
+    <div class="kpi-value">{tok_out_total:,}</div>
+    <div class="kpi-sub">respuesta Claude</div>
+    </div>""", unsafe_allow_html=True)
+with t3:
+    st.markdown(f"""<div class="kpi">
+    <div class="kpi-label">Tokens totales</div>
+    <div class="kpi-value">{tok_total:,}</div>
+    <div class="kpi-sub">entrada + salida</div>
+    </div>""", unsafe_allow_html=True)
+with t4:
+    st.markdown(f"""<div class="kpi">
+    <div class="kpi-label">Promedio / analisis</div>
+    <div class="kpi-value">{avg_tok:,.0f}</div>
+    <div class="kpi-sub">tokens por uso</div>
+    </div>""", unsafe_allow_html=True)
+with t5:
+    st.markdown(f"""<div class="kpi">
+    <div class="kpi-label">Costo estimado</div>
+    <div class="kpi-value">${costo:.4f}</div>
+    <div class="kpi-sub">USD Claude Sonnet</div>
+    </div>""", unsafe_allow_html=True)
+
+st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+st.markdown("### Uso general")
+
+k1, k2, k3, k4 = st.columns(4)
 
 with k1:
     st.markdown(f"""<div class="kpi">
@@ -90,21 +134,6 @@ with k2:
     </div>""", unsafe_allow_html=True)
 
 with k3:
-    st.markdown(f"""<div class="kpi">
-    <div class="kpi-label">Tokens totales</div>
-    <div class="kpi-value">{stats['tokens_totales']:,}</div>
-    <div class="kpi-sub">entrada + salida</div>
-    </div>""", unsafe_allow_html=True)
-
-with k4:
-    costo = stats['costo_total_usd']
-    st.markdown(f"""<div class="kpi">
-    <div class="kpi-label">Costo estimado</div>
-    <div class="kpi-value">${costo:.4f}</div>
-    <div class="kpi-sub">USD (Claude Sonnet)</div>
-    </div>""", unsafe_allow_html=True)
-
-with k5:
     dur = stats['duracion_promedio']
     st.markdown(f"""<div class="kpi">
     <div class="kpi-label">Duracion promedio</div>
@@ -112,7 +141,7 @@ with k5:
     <div class="kpi-sub">por analisis</div>
     </div>""", unsafe_allow_html=True)
 
-with k6:
+with k4:
     st.markdown(f"""<div class="kpi">
     <div class="kpi-label">Exportaciones</div>
     <div class="kpi-value">{stats['total_exports']}</div>
