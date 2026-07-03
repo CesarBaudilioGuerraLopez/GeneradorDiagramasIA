@@ -3,13 +3,37 @@
 from typing import Any
 
 
+def _sanitize_pasos(pasos: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Limpia referencias inválidas y auto-ciclos en 'siguiente'."""
+    valid_ids = {p.get("id") for p in pasos if p.get("id")}
+    clean: list[dict[str, Any]] = []
+    for p in pasos:
+        pid = p.get("id")
+        if not pid:
+            continue
+        nxt = []
+        for s in p.get("siguiente") or []:
+            s = str(s).strip()
+            if s and s in valid_ids and s != pid and s not in nxt:
+                nxt.append(s)
+        q = dict(p)
+        q["siguiente"] = nxt
+        clean.append(q)
+    return clean
+
+
 def compute_column_layout(pasos: list[dict[str, Any]]) -> dict[str, int]:
-    """Asigna columnas por longest-path topológico; evita solapamiento en el mismo carril."""
+    """Asigna columnas por longest-path topológico; evita solapamiento en el mismo carril.
+
+    Seguro ante ciclos: las aristas de retroceso (loops) no empujan columnas.
+    """
+    pasos = _sanitize_pasos(pasos)
     if not pasos:
         return {}
 
     id_map = {p["id"]: p for p in pasos}
     all_ids = list(id_map.keys())
+    n = len(all_ids)
 
     pred: dict[str, list[str]] = {pid: [] for pid in all_ids}
     for p in pasos:
@@ -31,17 +55,25 @@ def compute_column_layout(pasos: list[dict[str, Any]]) -> dict[str, int]:
                     ready.append(nxt)
                     ready.sort()
 
+    # Nodos en ciclo o no alcanzados
     topo.extend(pid for pid in all_ids if pid not in topo)
+    topo_pos = {pid: i for i, pid in enumerate(topo)}
+
+    def is_forward(src: str, tgt: str) -> bool:
+        """True si la arista avanza en el orden topológico (no es loop)."""
+        return topo_pos.get(tgt, -1) > topo_pos.get(src, -1)
 
     col_map: dict[str, int] = {}
     for pid in topo:
-        preds = [p for p in pred.get(pid, []) if p in col_map]
+        preds = [
+            p for p in pred.get(pid, [])
+            if p in col_map and is_forward(p, pid)
+        ]
         col_map[pid] = (max(col_map[p] for p in preds) + 1) if preds else 0
 
     role_of = {p["id"]: p.get("rol_id", "") for p in pasos}
-    topo_pos = {pid: i for i, pid in enumerate(topo)}
 
-    for _ in range(len(pasos) * 4):
+    for _ in range(max(n * 4, 1)):
         slot: dict[tuple, list[str]] = {}
         for pid, col in col_map.items():
             slot.setdefault((col, role_of.get(pid, "")), []).append(pid)
@@ -58,17 +90,22 @@ def compute_column_layout(pasos: list[dict[str, Any]]) -> dict[str, int]:
         if not conflict:
             break
 
-    changed = True
-    while changed:
+    # Solo propagar por aristas hacia adelante (máx n iteraciones)
+    for _ in range(max(n, 1)):
         changed = False
         for p in pasos:
             src = p["id"]
             if src not in col_map:
                 continue
             for nxt in p.get("siguiente", []):
-                if nxt in col_map and col_map[nxt] <= col_map[src]:
-                    col_map[nxt] = col_map[src] + 1
+                if nxt not in col_map or not is_forward(src, nxt):
+                    continue
+                need = col_map[src] + 1
+                if col_map[nxt] < need:
+                    col_map[nxt] = need
                     changed = True
+        if not changed:
+            break
 
     return col_map
 
@@ -81,6 +118,7 @@ def normalize_process_data(data: dict[str, Any]) -> dict[str, Any]:
     out = dict(data)
     roles: list[dict[str, Any]] = [dict(r) for r in (out.get("roles") or [])]
     pasos: list[dict[str, Any]] = [dict(p) for p in (out.get("pasos") or [])]
+    pasos = _sanitize_pasos(pasos)
 
     role_ids = {r["id"] for r in roles if r.get("id")}
 
@@ -112,6 +150,17 @@ def normalize_process_data(data: dict[str, Any]) -> dict[str, Any]:
         rid = (p.get("rol_id") or "").strip()
         if not rid or rid not in role_ids:
             p["rol_id"] = default_role
+
+    used_ids = {p["id"] for p in pasos if p.get("id")}
+    for i, p in enumerate(pasos):
+        if not p.get("id"):
+            nid = f"step_{i + 1}"
+            while nid in used_ids:
+                nid = f"step_{len(used_ids) + 1}"
+            p["id"] = nid
+            used_ids.add(nid)
+        if not p.get("nombre"):
+            p["nombre"] = p["id"]
 
     out["roles"] = roles
     out["pasos"] = pasos
