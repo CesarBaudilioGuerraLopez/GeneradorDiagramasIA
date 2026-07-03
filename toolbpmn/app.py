@@ -86,21 +86,16 @@ html, body, [class*="css"] {{ font-family: 'Segoe UI', system-ui, sans-serif; }}
 .cassa-badge {{ margin-left:auto; background:rgba(0,166,81,.22);
   border:1px solid {CASSA_GREEN}; color:#b8f5d4;
   font-size:.72rem; font-weight:600; padding:3px 11px; border-radius:20px; }}
-[data-testid="stSidebar"] {{
-  background:linear-gradient(180deg,{CASSA_DARK},{CASSA_BLUE})!important; }}
-[data-testid="stSidebar"] * {{ color:white!important; }}
-[data-testid="stSidebar"] .stSelectbox>div>div,
-[data-testid="stSidebar"] .stTextInput>div>div>input {{
-  background:rgba(255,255,255,.12)!important;
-  border:1px solid rgba(255,255,255,.25)!important;
-  color:white!important; border-radius:8px!important; }}
-.sidebar-logo {{ text-align:center; padding:14px 0 8px;
-  border-bottom:1px solid rgba(255,255,255,.15); margin-bottom:14px; }}
-.sidebar-logo img {{ width:120px; filter:brightness(0) invert(1); }}
-.sidebar-sec {{ background:rgba(255,255,255,.08); border-radius:10px;
-  padding:11px 13px; margin-bottom:11px; }}
-.sidebar-sec-t {{ font-size:.68rem; text-transform:uppercase; letter-spacing:1px;
-  color:rgba(255,255,255,.5)!important; font-weight:600; margin-bottom:7px; }}
+/* Barra lateral completamente oculta (sin panel ni boton para abrirla) */
+[data-testid="stSidebar"],
+[data-testid="stSidebarNav"],
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="collapsedControl"],
+section[data-testid="stSidebar"] {{
+  display:none!important; visibility:hidden!important;
+  width:0!important; min-width:0!important; height:0!important;
+  overflow:hidden!important; pointer-events:none!important;
+}}
 .step-badge {{ display:inline-flex; align-items:center; justify-content:center;
   width:26px; height:26px; background:{CASSA_BLUE}; color:white;
   border-radius:50%; font-size:.78rem; font-weight:700; margin-right:8px; }}
@@ -145,92 +140,6 @@ def _header():
 </div>""", unsafe_allow_html=True)
 
 
-def _sidebar(api_key):
-    with st.sidebar:
-        if LOGO_PATH.exists():
-            st.markdown(
-                f'<div class="sidebar-logo"><img src="data:image/png;base64,{_b64(LOGO_PATH)}"/></div>',
-                unsafe_allow_html=True)
-
-        st.markdown('<div class="sidebar-sec">', unsafe_allow_html=True)
-        st.markdown('<div class="sidebar-sec-t">Tu identificacion</div>', unsafe_allow_html=True)
-        user_name = st.text_input(
-            "Tu nombre",
-            value=st.session_state.get("user_name", ""),
-            placeholder="Ej: Juan Perez",
-            label_visibility="collapsed",
-            help="Se registra para el control de uso",
-        )
-        if user_name:
-            st.session_state["user_name"] = user_name
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        st.markdown('<div class="sidebar-sec">', unsafe_allow_html=True)
-        st.markdown('<div class="sidebar-sec-t">Configuracion</div>', unsafe_allow_html=True)
-
-        if is_cloud():
-            if api_key:
-                st.markdown(
-                    '<div style="background:rgba(0,166,81,.2);border:1px solid #00A651;'
-                    'border-radius:8px;padding:9px 11px;font-size:.8rem;color:#b8f5d4">'
-                    '<b>API Key configurada</b><br>'
-                    '<span style="opacity:.72">via Streamlit Secrets</span></div>',
-                    unsafe_allow_html=True)
-            else:
-                st.error("API Key no configurada en Secrets.")
-        else:
-            new_key = st.text_input("API Key Anthropic", value=api_key,
-                                    type="password",
-                                    help="Se guarda localmente")
-            if new_key != api_key:
-                set_api_key(new_key)
-                api_key = new_key
-                st.success("Guardada")
-
-        st.markdown(
-            '<div style="font-size:.76rem;color:rgba(255,255,255,.58);margin-top:6px">'
-            'Modelo: <b style="color:white">Claude Sonnet</b></div>',
-            unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        st.markdown('<div class="sidebar-sec">', unsafe_allow_html=True)
-        st.markdown('<div class="sidebar-sec-t">Estado</div>', unsafe_allow_html=True)
-        if api_key:
-            st.markdown("&#128994; **API Key:** Configurada")
-        else:
-            st.markdown("&#128308; **API Key:** No configurada")
-        if st.session_state.get("process_data"):
-            d = st.session_state.process_data
-            n_r = len(d.get("roles", []))
-            n_p = len(d.get("pasos", []))
-            st.markdown(f"&#128309; **Proceso cargado**")
-            st.markdown(f"&nbsp;&nbsp;&nbsp;{n_r} roles &middot; {n_p} pasos")
-        else:
-            st.markdown("&#9898; Sin proceso cargado")
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        st.markdown('<div class="sidebar-sec">', unsafe_allow_html=True)
-        st.markdown('<div class="sidebar-sec-t">Guia rapida</div>', unsafe_allow_html=True)
-        st.markdown("""
-<small style="color:rgba(255,255,255,.72);line-height:1.7">
-1. Configura tu API Key (una sola vez)<br>
-2. Describe el proceso con texto, archivo o microfono<br>
-3. En microfono: graba segmentos y unifica el texto<br>
-4. Haz clic en <b>Analizar</b><br>
-5. Edita roles y pasos si es necesario<br>
-6. Genera el diagrama visual<br>
-7. Exporta <b>.bpmn</b> para Bizagi o <b>.png</b>
-</small>""", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        st.markdown(
-            '<div style="text-align:center;padding-top:6px;color:rgba(255,255,255,.3);'
-            'font-size:.68rem">BPMN Tool v1.0 &middot; Analitica CASSA</div>',
-            unsafe_allow_html=True)
-
-    return api_key
-
-
 def _step(n, icon, title):
     st.markdown(
         f'<div class="step-title"><span class="step-badge">{n}</span>{icon} {title}</div>',
@@ -257,7 +166,19 @@ for _k, _v in [
 uploaded = None
 
 api_key = get_api_key()
-api_key = _sidebar(api_key)
+if "user_name" not in st.session_state:
+    st.session_state["user_name"] = "Usuario"
+
+# Solo en local (no Cloud): pedir API key en el area principal si falta
+if not is_cloud() and not api_key:
+    with st.expander("Configurar API Key Anthropic", expanded=True):
+        new_key = st.text_input("API Key", type="password", label_visibility="collapsed")
+        if new_key:
+            set_api_key(new_key)
+            api_key = new_key
+            st.rerun()
+elif is_cloud() and not api_key:
+    st.error("API Key no configurada en Streamlit Secrets.")
 
 # ── PASO 1: Entrada ───────────────────────────────────────────────────────────
 _step(1, "", "Describe tu proceso")
@@ -454,7 +375,7 @@ with c1:
     )
 with c2:
     if not api_key:
-        st.warning("Configura tu API Key en la barra lateral.")
+        st.warning("API Key no configurada.")
     elif not input_text.strip():
         st.info("Ingresa la descripcion del proceso.")
 
