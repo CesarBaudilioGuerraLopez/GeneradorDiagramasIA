@@ -67,9 +67,13 @@ st.markdown(f"""
 <p style='color:#64748b;margin-top:0'>BPMN Tool — Grupo CASSA | Solo admin — uso, tokens y costo</p>
 """, unsafe_allow_html=True)
 
-c_logout, _ = st.columns([1, 9])
+c_refresh, c_logout, _ = st.columns([1, 1, 8])
+with c_refresh:
+    if st.button("Refrescar datos", type="primary", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
 with c_logout:
-    if st.button("Cerrar sesion"):
+    if st.button("Cerrar sesion", use_container_width=True):
         st.session_state.admin_ok = False
         st.rerun()
 
