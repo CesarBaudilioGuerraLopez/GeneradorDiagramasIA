@@ -166,8 +166,6 @@ for _k, _v in [
 uploaded = None
 
 api_key = get_api_key()
-if "user_name" not in st.session_state:
-    st.session_state["user_name"] = "Usuario"
 
 # Solo en local (no Cloud): pedir API key en el area principal si falta
 if not is_cloud() and not api_key:
@@ -179,6 +177,20 @@ if not is_cloud() and not api_key:
             st.rerun()
 elif is_cloud() and not api_key:
     st.error("API Key no configurada en Streamlit Secrets.")
+
+# Nombre para el registro de uso (no se muestra barra lateral)
+_name_col, _ = st.columns([2, 5])
+with _name_col:
+    _uname = st.text_input(
+        "Tu nombre (para registro de uso)",
+        value=st.session_state.get("user_name", ""),
+        placeholder="Ej: Juan Perez",
+        label_visibility="collapsed",
+    )
+    if _uname.strip():
+        st.session_state["user_name"] = _uname.strip()
+    elif "user_name" not in st.session_state:
+        st.session_state["user_name"] = "Anonimo"
 
 # ── PASO 1: Entrada ───────────────────────────────────────────────────────────
 _step(1, "", "Describe tu proceso")
