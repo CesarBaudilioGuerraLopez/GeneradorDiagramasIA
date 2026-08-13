@@ -3,17 +3,63 @@
 <head><meta charset="UTF-8" /></head>
 <body>
 <script>
+  const PREFIX = "cassa_bpmn_draft_v1_";
+  let lastSent = null;
+
   function send(type, data) {
-    window.parent.postMessage(Object.assign({ isStreamlitMessage: true, type: type }, data), "*");
+    window.parent.postMessage(
+      Object.assign({ isStreamlitMessage: true, type: type }, data || {}),
+      "*"
+    );
   }
   function ready() { send("streamlit:componentReady", { apiVersion: 1 }); }
-  function setHeight() { send("streamlit:setFrameHeight", { height: 0 }); }
+  function setHeight(h) { send("streamlit:setFrameHeight", { height: h || 0 }); }
   function setValue(v) { send("streamlit:setComponentValue", { value: v }); }
 
-  const PREFIX = "cassa_bpmn_draft_v1_";
+  // Evita reruns infinitos: solo notificar a Streamlit si el valor cambió.
+  function setValueDedup(v) {
+    let serialized;
+    try {
+      serialized = JSON.stringify(v);
+    } catch (e) {
+      serialized = String(v);
+    }
+    if (serialized === lastSent) return;
+    lastSent = serialized;
+    setValue(v);
+  }
 
   function keyFor(user) {
     return PREFIX + String(user || "anon").trim().toLowerCase().replace(/\s+/g, "_");
+  }
+
+  function loadDraft(user) {
+    try {
+      const raw = localStorage.getItem(keyFor(user));
+      if (!raw) return { ok: true, found: false, user: user };
+      const parsed = JSON.parse(raw);
+      return { ok: true, found: true, user: user, draft: parsed };
+    } catch (e) {
+      return { ok: false, found: false, error: String(e), user: user };
+    }
+  }
+
+  function saveDraft(user, payload) {
+    try {
+      localStorage.setItem(keyFor(user), JSON.stringify(payload));
+      return { ok: true, saved: true, user: user };
+    } catch (e) {
+      return { ok: false, saved: false, error: String(e), user: user };
+    }
+  }
+
+  function clearDraft(user) {
+    try {
+      localStorage.removeItem(keyFor(user));
+      return { ok: true, cleared: true, user: user };
+    } catch (e) {
+      return { ok: false, cleared: false, error: String(e), user: user };
+    }
   }
 
   window.addEventListener("message", function (event) {
@@ -22,42 +68,24 @@
     const args = data.args || {};
     const action = args.action || "noop";
     const user = args.user || "";
-    const key = keyFor(user);
-    setHeight();
+    setHeight(0);
 
-    try {
-      if (action === "load") {
-        const raw = localStorage.getItem(key);
-        if (!raw) {
-          setValue({ ok: true, found: false, user: user, ts: Date.now() });
-          return;
-        }
-        let parsed = null;
-        try { parsed = JSON.parse(raw); } catch (e) { parsed = null; }
-        setValue({
-          ok: true,
-          found: !!parsed,
-          user: user,
-          draft: parsed,
-          ts: Date.now()
-        });
-      } else if (action === "save") {
-        const payload = args.payload || {};
-        localStorage.setItem(key, JSON.stringify(payload));
-        setValue({ ok: true, saved: true, user: user, ts: Date.now() });
-      } else if (action === "clear") {
-        localStorage.removeItem(key);
-        setValue({ ok: true, cleared: true, user: user, ts: Date.now() });
-      } else {
-        setValue({ ok: true, noop: true, ts: Date.now() });
-      }
-    } catch (err) {
-      setValue({ ok: false, error: String(err), ts: Date.now() });
+    if (action === "load") {
+      setValueDedup(loadDraft(user));
+    } else if (action === "save") {
+      // Respuesta estable (sin saved_at) para no disparar reruns en bucle
+      setValueDedup(saveDraft(user, args.payload || {}));
+    } else if (action === "clear") {
+      setValueDedup(clearDraft(user));
+    } else if (action === "ping") {
+      setValueDedup({ ok: true, ping: true });
+    } else {
+      setValueDedup({ ok: true, noop: true });
     }
   });
 
   ready();
-  setHeight();
+  setHeight(0);
 </script>
 </body>
 </html>

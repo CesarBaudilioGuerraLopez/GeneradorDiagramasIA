@@ -50,10 +50,24 @@ Streamlit Cloud lo instala automÃ¡ticamente.
 
 ## Notas
 
-- El micrÃ³fono requiere **HTTPS** (Streamlit Cloud lo provee) y permiso del navegador
-- Google Speech API requiere conexiÃ³n a internet
-- Los archivos `usage.db` se crean en el servidor efÃ­mero de Cloud (se reinician al redeploy)
+- El micrófono requiere **HTTPS** (Streamlit Cloud lo provee) y permiso del navegador
+- Google Speech API requiere conexión a internet
+- Los archivos `usage.db` se crean en el servidor efímero de Cloud (se reinician al redeploy)
 - Para uso en LAN interna, sigue usando `start_server.bat` en Windows
+
+## App "dormida" (plan gratuito)
+
+En **Streamlit Community Cloud** (plan gratuito) la app **se apaga sola** tras ~15 minutos sin visitas. Al volver a abrirla verás un spinner unos segundos mientras despierta. **No es un bug de la herramienta.**
+
+**Qué hace la app para ayudarte:**
+- Guarda borrador en el navegador (texto y proceso analizado)
+- Al recargar, ofrece **Continuar proceso guardado**
+- Botón **Recargar página** en el pie si la sesión no responde
+
+**Opciones para evitar el sueño:**
+1. **UptimeRobot** (gratis): monitor HTTP cada 5 min a `https://generadordiagramasia.streamlit.app`
+2. **Plan de pago** Streamlit Cloud (app always-on)
+3. **Servidor LAN** con `start_server.bat` para uso interno CASSA sin límites de Cloud
 
 ## Assets opcionales
 

@@ -7,7 +7,7 @@ font = "sans serif"
 
 [server]
 maxUploadSize = 50
-enableCORS = false
+# enableCORS=false choca con XSRF y Streamlit lo anula; dejar defaults seguros
 enableXsrfProtection = true
 
 [browser]
