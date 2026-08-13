@@ -42,9 +42,13 @@ def draft_content_hash(payload: dict) -> str:
     return hashlib.md5(raw.encode("utf-8")).hexdigest()
 
 
+# Limite para no tumbar Streamlit Cloud al cruzar el puente del componente
+_MAX_DRAFT_CHARS = 250_000
+
+
 def build_draft_payload(
     process_data: dict | None = None,
-    bpmn_xml: Optional[str] = None,
+    bpmn_xml: Optional[str] = None,  # ignorado a proposito (muy pesado)
     *,
     input_text: str = "",
     audio_unified: str = "",
@@ -53,16 +57,24 @@ def build_draft_payload(
     from datetime import datetime
 
     pd = process_data or {}
-    return {
+    # No persistir bpmn_xml: se regenera desde process_data y evita OOM en Cloud
+    payload = {
         "saved_at": datetime.now().isoformat(timespec="seconds"),
         "nombre_proceso": pd.get("nombre_proceso") or (
             "Borrador de texto" if input_text.strip() else "Proceso sin nombre"
         ),
         "process_data": process_data,
-        "bpmn_xml": bpmn_xml,
-        "input_text": input_text,
-        "audio_unified": audio_unified,
+        "bpmn_xml": None,
+        "input_text": (input_text or "")[:80_000],
+        "audio_unified": (audio_unified or "")[:20_000],
         "audio_segments_meta": len(audio_segments or []),
         "n_roles": len(pd.get("roles") or []),
         "n_pasos": len(pd.get("pasos") or []),
     }
+    raw = json.dumps(payload, ensure_ascii=False, default=str)
+    if len(raw) > _MAX_DRAFT_CHARS:
+        # Si el proceso es enorme, guardar solo metadatos + texto corto
+        payload["process_data"] = None
+        payload["input_text"] = (input_text or "")[:8_000]
+        payload["nombre_proceso"] = (payload["nombre_proceso"] or "") + " (recortado)"
+    return payload

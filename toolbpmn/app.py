@@ -250,99 +250,108 @@ if not _has_name:
 
 # ── Borrador en el navegador (retomar tras recargar la pagina) ─────────────────
 if _has_name:
-    from draft_store import draft_load, draft_save, draft_clear, build_draft_payload
+    try:
+        from draft_store import draft_load, draft_save, draft_clear, build_draft_payload
 
-    _user = st.session_state["user_name"]
-    if st.session_state.get("_draft_user") != _user:
-        st.session_state._draft_user = _user
-        st.session_state.draft_resolved = False
-        st.session_state.draft_pending = None
-        st.session_state.pop("_draft_load_done", None)
+        _user = st.session_state["user_name"]
+        if st.session_state.get("_draft_user") != _user:
+            st.session_state._draft_user = _user
+            st.session_state.draft_resolved = False
+            st.session_state.draft_pending = None
+            st.session_state.pop("_draft_load_done", None)
+            st.session_state.pop("_draft_load_rerun", None)
 
-    if not st.session_state.get("draft_resolved") and not st.session_state.get("draft_pending"):
-        _load_res = draft_load(_user, key=f"dload_{_user}")
-        if _load_res is None:
-            # Primer ciclo del componente: un rerun breve (no bloquear con st.stop)
-            if not st.session_state.get("_draft_load_rerun"):
-                st.session_state._draft_load_rerun = True
-                st.rerun()
-            st.session_state.draft_resolved = True
-        elif _load_res.get("found") and _load_res.get("draft"):
-            _draft = _load_res["draft"]
-            if _draft.get("process_data") or (_draft.get("input_text") or "").strip():
-                st.session_state.draft_pending = _draft
+        if not st.session_state.get("draft_resolved") and not st.session_state.get("draft_pending"):
+            _load_res = draft_load(_user, key=f"dload_{_user}")
+            if _load_res is None:
+                # Primer ciclo del componente: un solo rerun; si no responde, seguir
+                if not st.session_state.get("_draft_load_rerun"):
+                    st.session_state._draft_load_rerun = True
+                    st.rerun()
+                st.session_state.draft_resolved = True
+            elif _load_res.get("found") and _load_res.get("draft"):
+                _draft = _load_res["draft"]
+                if _draft.get("process_data") or (_draft.get("input_text") or "").strip():
+                    st.session_state.draft_pending = _draft
+                else:
+                    st.session_state.draft_resolved = True
             else:
                 st.session_state.draft_resolved = True
-        else:
-            st.session_state.draft_resolved = True
 
-    if st.session_state.get("draft_pending") and not st.session_state.get("draft_resolved"):
-        _d = st.session_state.draft_pending
-        _is_partial = not _d.get("process_data") and (_d.get("input_text") or "").strip()
-        if _is_partial:
-            _title = "Borrador de texto encontrado"
-            _detail = (
-                f'Texto sin analizar · '
-                f'{len((_d.get("input_text") or ""))} caracteres<br>'
-                f'<span style="color:#64748b;font-size:.85rem">Guardado: {_d.get("saved_at", "")}</span>'
+        if st.session_state.get("draft_pending") and not st.session_state.get("draft_resolved"):
+            _d = st.session_state.draft_pending
+            _is_partial = not _d.get("process_data") and (_d.get("input_text") or "").strip()
+            if _is_partial:
+                _title = "Borrador de texto encontrado"
+                _detail = (
+                    f'Texto sin analizar · '
+                    f'{len((_d.get("input_text") or ""))} caracteres<br>'
+                    f'<span style="color:#64748b;font-size:.85rem">Guardado: {_d.get("saved_at", "")}</span>'
+                )
+            else:
+                _title = "Proceso guardado encontrado"
+                _detail = (
+                    f'<b>{_d.get("nombre_proceso", "Proceso")}</b> · '
+                    f'{_d.get("n_pasos", 0)} pasos · {_d.get("n_roles", 0)} roles<br>'
+                    f'<span style="color:#64748b;font-size:.85rem">Guardado: {_d.get("saved_at", "")}</span>'
+                )
+            st.markdown(
+                f'<div style="background:#E8F4FD;border:1px solid #AED6F1;border-left:4px solid {CASSA_BLUE};'
+                f'border-radius:10px;padding:14px 16px;margin:8px 0 14px">'
+                f'<div style="font-weight:700;color:{CASSA_DARK};margin-bottom:4px">{_title}</div>'
+                f'<div style="color:#334155;font-size:.92rem">{_detail}</div>'
+                f'</div>',
+                unsafe_allow_html=True,
             )
-        else:
-            _title = "Proceso guardado encontrado"
-            _detail = (
-                f'<b>{_d.get("nombre_proceso", "Proceso")}</b> · '
-                f'{_d.get("n_pasos", 0)} pasos · {_d.get("n_roles", 0)} roles<br>'
-                f'<span style="color:#64748b;font-size:.85rem">Guardado: {_d.get("saved_at", "")}</span>'
+            st.caption(
+                "La pagina se recargo, la app despertó tras inactividad o se cerro el navegador. "
+                "Puedes retomar o empezar de cero."
             )
-        st.markdown(
-            f'<div style="background:#E8F4FD;border:1px solid #AED6F1;border-left:4px solid {CASSA_BLUE};'
-            f'border-radius:10px;padding:14px 16px;margin:8px 0 14px">'
-            f'<div style="font-weight:700;color:{CASSA_DARK};margin-bottom:4px">{_title}</div>'
-            f'<div style="color:#334155;font-size:.92rem">{_detail}</div>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
-        st.caption(
-            "La pagina se recargo, la app despertó tras inactividad o se cerro el navegador. "
-            "Puedes retomar o empezar de cero."
-        )
-        _c1, _c2, _ = st.columns([2, 2, 4])
-        with _c1:
-            if st.button("Continuar proceso guardado", type="primary", use_container_width=True):
-                st.session_state.process_data = _d.get("process_data")
-                st.session_state.bpmn_xml = _d.get("bpmn_xml")
-                st.session_state.diagram_png = None
-                st.session_state.pop("_draft_saved_hash", None)
-                if st.session_state.process_data:
-                    try:
-                        st.session_state.diagram_png = _render_diagram(st.session_state.process_data)
-                        if not st.session_state.bpmn_xml:
+            _c1, _c2, _ = st.columns([2, 2, 4])
+            with _c1:
+                if st.button("Continuar proceso guardado", type="primary", use_container_width=True):
+                    st.session_state.process_data = _d.get("process_data")
+                    # bpmn_xml ya no se guarda en borrador; se regenera abajo
+                    st.session_state.bpmn_xml = None
+                    st.session_state.diagram_png = None
+                    st.session_state.pop("_draft_saved_hash", None)
+                    if st.session_state.process_data:
+                        try:
                             st.session_state.bpmn_xml = _generate_bpmn(st.session_state.process_data)
-                    except Exception as e:
-                        st.warning(f"Borrador cargado, pero fallo la previsualizacion: {e}")
-                elif (_d.get("input_text") or "").strip():
-                    st.session_state.main_process_input = _d["input_text"]
-                st.session_state.bpmn_editor_key = st.session_state.get("bpmn_editor_key", 0) + 1
-                st.session_state._last_saved_bpmn_xml = st.session_state.bpmn_xml
-                st.session_state._data_fp = _process_fingerprint(st.session_state.process_data or {})
-                st.session_state._sync_source = "diagram"
-                st.session_state.draft_resolved = True
-                st.session_state.draft_pending = None
-                st.rerun()
-        with _c2:
-            if st.button("Iniciar proceso nuevo", use_container_width=True):
-                draft_clear(_user, key=f"dclear_{_user}_{int(time.time())}")
-                st.session_state.process_data = None
-                st.session_state.bpmn_xml = None
-                st.session_state.diagram_png = None
-                st.session_state.audio_segments = []
-                st.session_state.audio_pending_bytes = None
-                st.session_state.audio_unified_text = ""
-                st.session_state.draft_resolved = True
-                st.session_state.draft_pending = None
-                st.session_state.pop("_data_fp", None)
-                st.session_state.pop("_draft_saved_hash", None)
-                st.rerun()
-        st.stop()
+                            st.session_state.diagram_png = _render_diagram(st.session_state.process_data)
+                        except Exception as e:
+                            st.warning(f"Borrador cargado, pero fallo la previsualizacion: {e}")
+                    elif (_d.get("input_text") or "").strip():
+                        st.session_state.main_process_input = _d["input_text"]
+                    st.session_state.bpmn_editor_key = st.session_state.get("bpmn_editor_key", 0) + 1
+                    st.session_state._last_saved_bpmn_xml = st.session_state.bpmn_xml
+                    st.session_state._data_fp = _process_fingerprint(st.session_state.process_data or {})
+                    st.session_state._sync_source = "table"
+                    st.session_state.draft_resolved = True
+                    st.session_state.draft_pending = None
+                    st.rerun()
+            with _c2:
+                if st.button("Iniciar proceso nuevo", use_container_width=True):
+                    try:
+                        draft_clear(_user, key=f"dclear_{_user}_{int(time.time())}")
+                    except Exception:
+                        pass
+                    st.session_state.process_data = None
+                    st.session_state.bpmn_xml = None
+                    st.session_state.diagram_png = None
+                    st.session_state.audio_segments = []
+                    st.session_state.audio_pending_bytes = None
+                    st.session_state.audio_unified_text = ""
+                    st.session_state.draft_resolved = True
+                    st.session_state.draft_pending = None
+                    st.session_state.pop("_data_fp", None)
+                    st.session_state.pop("_draft_saved_hash", None)
+                    st.rerun()
+            st.stop()
+    except Exception:
+        # Si el puente de borrador falla, no tumbar toda la app
+        st.session_state.draft_resolved = True
+        st.session_state.draft_pending = None
 
 if is_cloud():
     with st.expander("La app se queda dormida?", expanded=False):
@@ -679,7 +688,7 @@ elif st.session_state.process_data and _has_name:
     # Guardar borrador solo si el contenido cambio (evita bucle Error running app)
     try:
         from draft_store import draft_save, build_draft_payload, draft_content_hash
-        _payload = build_draft_payload(data, st.session_state.get("bpmn_xml"))
+        _payload = build_draft_payload(data)
         _dh = draft_content_hash(_payload)
         if st.session_state.get("_draft_saved_hash") != _dh:
             draft_save(

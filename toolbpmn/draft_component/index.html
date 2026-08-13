@@ -4,6 +4,7 @@
 <body>
 <script>
   const PREFIX = "cassa_bpmn_draft_v1_";
+  const MAX_SEND = 220000; // chars JSON hacia Streamlit
   let lastSent = null;
 
   function send(type, data) {
@@ -16,7 +17,6 @@
   function setHeight(h) { send("streamlit:setFrameHeight", { height: h || 0 }); }
   function setValue(v) { send("streamlit:setComponentValue", { value: v }); }
 
-  // Evita reruns infinitos: solo notificar a Streamlit si el valor cambió.
   function setValueDedup(v) {
     let serialized;
     try {
@@ -33,20 +33,41 @@
     return PREFIX + String(user || "anon").trim().toLowerCase().replace(/\s+/g, "_");
   }
 
+  function slimDraft(draft) {
+    if (!draft || typeof draft !== "object") return draft;
+    const copy = Object.assign({}, draft);
+    // Nunca devolver XML BPMN por el puente (provoca crash en Cloud)
+    delete copy.bpmn_xml;
+    return copy;
+  }
+
   function loadDraft(user) {
     try {
       const raw = localStorage.getItem(keyFor(user));
       if (!raw) return { ok: true, found: false, user: user };
-      const parsed = JSON.parse(raw);
-      return { ok: true, found: true, user: user, draft: parsed };
+      if (raw.length > MAX_SEND * 2) {
+        // Borrador legacy demasiado grande: limpiar para no tumbar la app
+        localStorage.removeItem(keyFor(user));
+        return { ok: true, found: false, user: user, cleared: "too_large" };
+      }
+      const parsed = slimDraft(JSON.parse(raw));
+      const out = { ok: true, found: true, user: user, draft: parsed };
+      const serialized = JSON.stringify(out);
+      if (serialized.length > MAX_SEND) {
+        localStorage.removeItem(keyFor(user));
+        return { ok: true, found: false, user: user, cleared: "too_large" };
+      }
+      return out;
     } catch (e) {
+      try { localStorage.removeItem(keyFor(user)); } catch (_) {}
       return { ok: false, found: false, error: String(e), user: user };
     }
   }
 
   function saveDraft(user, payload) {
     try {
-      localStorage.setItem(keyFor(user), JSON.stringify(payload));
+      const slim = slimDraft(payload || {});
+      localStorage.setItem(keyFor(user), JSON.stringify(slim));
       return { ok: true, saved: true, user: user };
     } catch (e) {
       return { ok: false, saved: false, error: String(e), user: user };
@@ -70,17 +91,20 @@
     const user = args.user || "";
     setHeight(0);
 
-    if (action === "load") {
-      setValueDedup(loadDraft(user));
-    } else if (action === "save") {
-      // Respuesta estable (sin saved_at) para no disparar reruns en bucle
-      setValueDedup(saveDraft(user, args.payload || {}));
-    } else if (action === "clear") {
-      setValueDedup(clearDraft(user));
-    } else if (action === "ping") {
-      setValueDedup({ ok: true, ping: true });
-    } else {
-      setValueDedup({ ok: true, noop: true });
+    try {
+      if (action === "load") {
+        setValueDedup(loadDraft(user));
+      } else if (action === "save") {
+        setValueDedup(saveDraft(user, args.payload || {}));
+      } else if (action === "clear") {
+        setValueDedup(clearDraft(user));
+      } else if (action === "ping") {
+        setValueDedup({ ok: true, ping: true });
+      } else {
+        setValueDedup({ ok: true, noop: true });
+      }
+    } catch (e) {
+      setValueDedup({ ok: false, error: String(e), user: user });
     }
   });
 
